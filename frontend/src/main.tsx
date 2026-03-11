@@ -1,5 +1,8 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { Buffer } from 'buffer'
+
+(window as any).Buffer = (window as any).Buffer || Buffer;
 import App from './App.tsx'
 import './index.css'
 
