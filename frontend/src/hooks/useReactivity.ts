@@ -28,11 +28,11 @@ export function useReactivity(duelId: string | null) {
         const sub = await sdk.subscribe({
           ethCalls: [
             { 
-              address: PULSE_GAME_ADDRESS as `0x${string}`, 
+              to: PULSE_GAME_ADDRESS as `0x${string}`, 
               abi: pulseGameAbi, 
               functionName: 'getDuel', 
               args: [BigInt(duelId)] 
-            }
+            } as any
           ],
           onData: (data: any) => {
             if (disconnected) return;
@@ -58,7 +58,9 @@ export function useReactivity(duelId: string | null) {
             }
           }
         });
-        subId = sub.id;
+        if (sub && !('message' in sub)) {
+          subId = (sub as any).id;
+        }
       } catch (err) {
         console.error("Reactivity subscription failed:", err);
       }

@@ -7,7 +7,7 @@ import { usePulseGame } from '../hooks/usePulseGame';
 import { Link } from 'react-router-dom';
 
 export function Duel() {
-    const { account, createDuel, joinDuel } = usePulseGame();
+    const { account, createDuel } = usePulseGame();
     const [duelId, setDuelId] = useState<string>('');
     const [opponent, setOpponent] = useState('');
     const [stake, setStake] = useState('1000000000000000'); // 0.001 STT default

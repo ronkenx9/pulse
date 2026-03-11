@@ -5,7 +5,7 @@ import { playHum, playSnap, playBassDrop, audioCtx } from '../lib/audio';
 
 export function SignalZone({ duelId }: { duelId: string }) {
     const { submitReaction } = usePulseGame();
-    const { signalTimestamp, isArmed, gameResult, isFalseStart } = useReactivity(duelId);
+    const { isArmed, gameResult, isFalseStart } = useReactivity(duelId);
     
     // Local UI State
     const [humNode, setHumNode] = useState<OscillatorNode | null>(null);
