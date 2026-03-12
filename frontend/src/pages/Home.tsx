@@ -9,14 +9,14 @@ import { OnboardingSlideshow } from '../components/OnboardingSlideshow';
 const publicClient = createPublicClient({ chain: somniaTestnet, transport: http() });
 
 const PARTICLES = [
-  { id: 0, style: { top: '18%',  left: '2%',   '--pa': '38deg',  '--pd': '0s',   '--pdur': '3.2s' } },
-  { id: 1, style: { top: '12%',  left: '94%',  '--pa': '-145deg','--pd': '0.4s', '--pdur': '2.8s' } },
-  { id: 2, style: { top: '82%',  left: '5%',   '--pa': '-28deg', '--pd': '0.8s', '--pdur': '3.5s' } },
-  { id: 3, style: { top: '78%',  left: '90%',  '--pa': '152deg', '--pd': '0.2s', '--pdur': '3.0s' } },
-  { id: 4, style: { top: '2%',   left: '48%',  '--pa': '92deg',  '--pd': '1.0s', '--pdur': '2.5s' } },
-  { id: 5, style: { top: '48%',  left: '1%',   '--pa': '2deg',   '--pd': '0.6s', '--pdur': '3.8s' } },
-  { id: 6, style: { top: '58%',  left: '97%',  '--pa': '-178deg','--pd': '1.4s', '--pdur': '2.6s' } },
-  { id: 7, style: { top: '97%',  left: '28%',  '--pa': '-82deg', '--pd': '0.3s', '--pdur': '3.3s' } },
+  { id: 0, style: { top: '18%', left: '2%', '--pa': '38deg', '--pd': '0s', '--pdur': '3.2s' } },
+  { id: 1, style: { top: '12%', left: '94%', '--pa': '-145deg', '--pd': '0.4s', '--pdur': '2.8s' } },
+  { id: 2, style: { top: '82%', left: '5%', '--pa': '-28deg', '--pd': '0.8s', '--pdur': '3.5s' } },
+  { id: 3, style: { top: '78%', left: '90%', '--pa': '152deg', '--pd': '0.2s', '--pdur': '3.0s' } },
+  { id: 4, style: { top: '2%', left: '48%', '--pa': '92deg', '--pd': '1.0s', '--pdur': '2.5s' } },
+  { id: 5, style: { top: '48%', left: '1%', '--pa': '2deg', '--pd': '0.6s', '--pdur': '3.8s' } },
+  { id: 6, style: { top: '58%', left: '97%', '--pa': '-178deg', '--pd': '1.4s', '--pdur': '2.6s' } },
+  { id: 7, style: { top: '97%', left: '28%', '--pa': '-82deg', '--pd': '0.3s', '--pdur': '3.3s' } },
 ];
 
 export function Home() {
@@ -33,7 +33,7 @@ export function Home() {
       address: PULSE_GAME_ADDRESS as `0x${string}`,
       abi: pulseGameAbi,
       functionName: 'duelCount',
-    }).then((c) => setDuelCount((c as bigint).toString())).catch(() => {});
+    }).then((c) => setDuelCount((c as bigint).toString())).catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -50,7 +50,13 @@ export function Home() {
 
   const handleConnect = async () => {
     setConnecting(true);
-    await connect();
+    try {
+      await connect();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setConnecting(false);
+    }
   };
 
   const handleOnboardingComplete = () => {
@@ -68,11 +74,11 @@ export function Home() {
     <div className="home-root">
       {/* Circuit grid background */}
       <svg className="circuit-grid" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
-        {[80,160,260,380,500,620,720,820,880].map(y => (
+        {[80, 160, 260, 380, 500, 620, 720, 820, 880].map(y => (
           <line key={`h${y}`} x1="0" y1={y} x2="1440" y2={y}
             stroke="rgba(139,43,226,0.10)" strokeWidth="1" />
         ))}
-        {[160,320,480,640,720,800,960,1120,1280].map(x => (
+        {[160, 320, 480, 640, 720, 800, 960, 1120, 1280].map(x => (
           <line key={`v${x}`} x1={x} y1="0" x2={x} y2="900"
             stroke="rgba(139,43,226,0.10)" strokeWidth="1" />
         ))}
