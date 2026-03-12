@@ -1,18 +1,30 @@
+import { useLiveFeed } from '../hooks/useLiveFeed';
+
 export function MatchFeed() {
-    return (
-        <div className="panel" style={{ marginTop: '2rem' }}>
-            <h3>NEURAL_FEED</h3>
-            <ul style={{ listStyle: 'none', marginTop: '1rem', fontSize: '0.9rem' }}>
-                <li style={{ marginBottom: '0.5rem' }}>
-                    [<span className="numeric">14:02:11</span>] 0x112.. <span style={{color: 'var(--green)'}}>DEFEATED</span> 0x899..
-                </li>
-                <li style={{ marginBottom: '0.5rem' }}>
-                    [<span className="numeric">14:00:45</span>] 0x4CA.. <span style={{color: 'var(--red)'}}>FALSE START</span>
-                </li>
-                <li style={{ marginBottom: '0.5rem' }}>
-                    [<span className="numeric">13:58:22</span>] 0x91F.. <span style={{color: 'var(--green)'}}>DEFEATED</span> 0x33A..
-                </li>
-            </ul>
+  const { entries, loading } = useLiveFeed();
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+      {loading && (
+        <p className="feed-empty">SCANNING CHAIN...</p>
+      )}
+      {!loading && entries.length === 0 && (
+        <p className="feed-empty">NO RECENT DUELS</p>
+      )}
+      {entries.map(e => (
+        <div key={e.id} className="feed-entry feed-entry--new">
+          <span className="feed-time">[{e.time}]</span>
+          {e.isFalseStart ? (
+            <span className="feed-result feed-result--false">
+              {e.loser} FALSE START
+            </span>
+          ) : (
+            <span className="feed-result feed-result--win">
+              {e.winner} <span style={{ color: 'rgba(200,200,232,0.5)' }}>DEFEATED</span> {e.loser}
+            </span>
+          )}
         </div>
-    );
+      ))}
+    </div>
+  );
 }

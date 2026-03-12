@@ -1,25 +1,39 @@
+// PlayerList — removed hardcoded mock data.
+// Lobby is intentionally minimal: a real live lobby would require
+// an off-chain indexer or subgraph to track open DuelCreated events.
+// For now we show a clean empty state with context.
 export function PlayerList() {
-    // In a real production app, this would poll a subgraph or rely on
-    // an active sockets registry. For the hackathon MVP, we mock the lobby list
-    // or fetch recent creators from viem event filters.
-    
-    return (
-        <div className="panel" style={{ height: '100%', borderRight: '1px solid var(--purple)' }}>
-            <h3>LOBBY_NODES</h3>
-            <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ padding: '0.5rem', background: 'rgba(0, 255, 136, 0.1)', border: '1px solid var(--green)' }}>
-                    <p>0x91F...22A3</p>
-                    <p className="numeric" style={{ color: 'var(--gold)' }}>ELO: 1140</p>
-                </div>
-                <div style={{ padding: '0.5rem', background: 'rgba(255, 59, 59, 0.1)', border: '1px solid var(--red)' }}>
-                    <p>0x4CA...B1D0 (CHALLENGING)</p>
-                    <p className="numeric" style={{ color: 'var(--gold)' }}>ELO: 980</p>
-                </div>
-                <div style={{ padding: '0.5rem', border: '1px solid var(--text-primary)' }}>
-                    <p>0x221...F31B</p>
-                    <p className="numeric" style={{ color: 'var(--gold)' }}>ELO: 1000</p>
-                </div>
-            </div>
-        </div>
-    );
+  return (
+    <div
+      style={{
+        height: '100%',
+        borderRight: '1px solid var(--purple)',
+        padding: '1.5rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1rem',
+      }}
+    >
+      <h3 style={{ fontSize: '0.85rem', letterSpacing: '3px', color: 'var(--cyan)' }}>
+        LOBBY_NODES
+      </h3>
+      <p
+        style={{
+          fontFamily: 'var(--font-body)',
+          fontSize: '0.72rem',
+          letterSpacing: '1px',
+          color: 'rgba(200,200,232,0.3)',
+          lineHeight: '1.8',
+          marginTop: '0.5rem',
+        }}
+      >
+        OPEN CHALLENGES<br />
+        appear here when<br />
+        opponents create duels.
+        <br /><br />
+        Share your invite link<br />
+        to bring a challenger.
+      </p>
+    </div>
+  );
 }
