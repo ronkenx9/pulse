@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react';
-import { createWalletClient, custom, createPublicClient, http, encodeFunctionData } from 'viem';
+import { useCallback } from 'react';
+import { createPublicClient, http, encodeFunctionData } from 'viem';
 import { somniaTestnet } from '../lib/chain';
 import { PULSE_GAME_ADDRESS, pulseGameAbi } from '../lib/contracts';
+import { useWallet } from '../context/WalletContext';
 
 const publicClient = createPublicClient({
   chain: somniaTestnet,
@@ -34,22 +35,7 @@ export interface DuelRecord {
 }
 
 export function usePulseGame() {
-  const [account, setAccount] = useState<`0x${string}` | null>(null);
-  const [walletClient, setWalletClient] = useState<any>(null);
-
-  const connect = async () => {
-    if (typeof window !== 'undefined' && (window as any).ethereum) {
-      const client = createWalletClient({
-        chain: somniaTestnet,
-        transport: custom((window as any).ethereum)
-      });
-      const [address] = await client.requestAddresses();
-      setAccount(address);
-      setWalletClient(client);
-    } else {
-      alert("Please install a Web3 wallet.");
-    }
-  };
+  const { account, walletClient, connect } = useWallet();
 
   // Read: Get duel state by ID
   const getDuel = useCallback(async (duelId: string): Promise<Duel | null> => {
