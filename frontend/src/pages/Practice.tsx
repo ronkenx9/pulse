@@ -7,20 +7,20 @@ type Difficulty = 'ROOKIE' | 'SOLDIER' | 'LEGEND';
 type Stage = 'IDLE' | 'COUNTDOWN' | 'WAIT' | 'FIRE' | 'RESULT_HIT' | 'RESULT_EARLY';
 
 const DIFFICULTIES: Record<Difficulty, { label: string; minMs: number; maxMs: number; target: number; range: string }> = {
-  ROOKIE:  { label: 'ROOKIE',  minMs: 3000, maxMs: 5000, target: 500, range: '3 – 5s' },
+  ROOKIE: { label: 'ROOKIE', minMs: 3000, maxMs: 5000, target: 500, range: '3 – 5s' },
   SOLDIER: { label: 'SOLDIER', minMs: 1500, maxMs: 3000, target: 300, range: '1.5 – 3s' },
-  LEGEND:  { label: 'LEGEND',  minMs: 800,  maxMs: 1800, target: 180, range: '0.8 – 1.8s' },
+  LEGEND: { label: 'LEGEND', minMs: 800, maxMs: 1800, target: 180, range: '0.8 – 1.8s' },
 };
 
 function grade(ms: number, target: number): { label: string; color: string } {
   if (ms < target * 0.6) return { label: 'LEGENDARY REFLEX', color: 'var(--gold)' };
-  if (ms < target)       return { label: 'SHARP — WELL DONE', color: 'var(--green)' };
+  if (ms < target) return { label: 'SHARP — WELL DONE', color: 'var(--green)' };
   if (ms < target * 1.4) return { label: 'DECENT — KEEP TRAINING', color: 'var(--cyan)' };
-  return                         { label: 'TOO SLOW — PRACTICE MORE', color: 'var(--red)' };
+  return { label: 'TOO SLOW — PRACTICE MORE', color: 'var(--red)' };
 }
 
 const HISTORY_KEY = 'pulse_practice_history';
-const BEST_KEY    = 'pulse_practice_best';
+const BEST_KEY = 'pulse_practice_best';
 
 function loadHistory(): number[] {
   try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; }
@@ -29,10 +29,13 @@ function saveHistory(h: number[]) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(-10)));
 }
 
+const BOT_ADDRESS = '0x4EE45DA3868ba337AAD8B2803f325a2900EDb2a5';
+
 export function Practice() {
   const { account } = useWallet();
+  const [mode, setMode] = useState<'OFFLINE' | 'ON-CHAIN'>('OFFLINE');
   const [difficulty, setDifficulty] = useState<Difficulty>('SOLDIER');
-  const [stage, setStage]     = useState<Stage>('IDLE');
+  const [stage, setStage] = useState<Stage>('IDLE');
   const [countdown, setCountdown] = useState(3);
   const [reactionMs, setReactionMs] = useState<number | null>(null);
   const [history, setHistory] = useState<number[]>(loadHistory);
@@ -41,17 +44,27 @@ export function Practice() {
     return v ? Number(v) : null;
   });
 
-  const startTimeRef  = useRef<number>(0);
-  const signalTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startTimeRef = useRef<number>(0);
+  const signalTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const humHandleRef = useRef<{ stop: () => void } | null>(null);
+  const [showScanline, setShowScanline] = useState(false);
 
   // Clear timers on unmount
   useEffect(() => {
     return () => {
-      if (signalTimer.current)   clearTimeout(signalTimer.current);
+      if (signalTimer.current) clearTimeout(signalTimer.current);
       if (countdownTimer.current) clearInterval(countdownTimer.current);
     };
   }, []);
+
+  const startOnChain = async () => {
+    if (!account) return alert("Connect wallet first");
+    // This will redirect to the real Arena with the bot's address
+    const stake = prompt("Stake in STMET?", "0.01");
+    if (!stake) return;
+    window.location.href = `/duel?opponent=${BOT_ADDRESS}&stake=${stake}`;
+  };
 
   const startRound = () => {
     if (signalTimer.current) clearTimeout(signalTimer.current);
@@ -76,15 +89,22 @@ export function Practice() {
     setStage('WAIT');
     const { minMs, maxMs } = DIFFICULTIES[difficulty];
     const delay = minMs + Math.random() * (maxMs - minMs);
-    playHum();
+    humHandleRef.current = playHum();
     signalTimer.current = setTimeout(() => {
+      if (humHandleRef.current) humHandleRef.current.stop();
       setStage('FIRE');
       startTimeRef.current = performance.now();
       playSnap();
-      document.body.classList.add('signal-fire');
-      setTimeout(() => document.body.classList.remove('signal-fire'), 120);
+
+      setShowScanline(true);
+      setTimeout(() => setShowScanline(false), 500);
+
+      document.body.classList.add('signal-active');
       document.body.classList.add('shake');
-      setTimeout(() => document.body.classList.remove('shake'), 400);
+      setTimeout(() => {
+        document.body.classList.remove('signal-active');
+        document.body.classList.remove('shake');
+      }, 500);
     }, delay);
   };
 
@@ -134,28 +154,48 @@ export function Practice() {
         PRACTICE MODE
       </h1>
       <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', letterSpacing: '2px', color: 'rgba(200,200,232,0.45)' }}>
-        TRAIN YOUR REFLEXES · NO STAKE · NO BLOCKCHAIN
+        {mode === 'OFFLINE' ? 'TRAIN YOUR REFLEXES · NO STAKE · NO BLOCKCHAIN' : 'ON-CHAIN ARENA · CHALLENGE THE BOT · STAKE STMET'}
       </p>
 
-      {/* Difficulty selector */}
-      <div className="difficulty-cards">
-        {(Object.entries(DIFFICULTIES) as [Difficulty, typeof DIFFICULTIES[Difficulty]][]).map(([key, d]) => (
-          <button
-            key={key}
-            className={`difficulty-card ${difficulty === key ? 'difficulty-card--active' : ''}`}
-            onClick={() => { setDifficulty(key); reset(); }}
-          >
-            <span className="difficulty-name">{d.label}</span>
-            <span className="difficulty-range">Signal: {d.range}</span>
-            <span className="difficulty-target">Target: &lt;{d.target}ms</span>
-          </button>
-        ))}
+      {/* Mode Toggle */}
+      <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+        <button
+          className={`btn-primary ${mode === 'OFFLINE' ? '' : 'btn-dim'}`}
+          onClick={() => setMode('OFFLINE')}
+          style={{ fontSize: '0.7rem', padding: '0.4rem 1rem' }}
+        >
+          OFFLINE (LOCAL)
+        </button>
+        <button
+          className={`btn-primary ${mode === 'ON-CHAIN' ? '' : 'btn-dim'}`}
+          onClick={() => setMode('ON-CHAIN')}
+          style={{ fontSize: '0.7rem', padding: '0.4rem 1rem', borderColor: 'var(--gold)', color: mode === 'ON-CHAIN' ? 'var(--gold)' : '' }}
+        >
+          ON-CHAIN (BOT)
+        </button>
       </div>
+
+      {/* Difficulty selector (Only if offline) */}
+      {mode === 'OFFLINE' && (
+        <div className="difficulty-cards">
+          {(Object.entries(DIFFICULTIES) as [Difficulty, typeof DIFFICULTIES[Difficulty]][]).map(([key, d]) => (
+            <button
+              key={key}
+              className={`difficulty-card ${difficulty === key ? 'difficulty-card--active' : ''}`}
+              onClick={() => { setDifficulty(key); reset(); }}
+            >
+              <span className="difficulty-name">{d.label}</span>
+              <span className="difficulty-range">Signal: {d.range}</span>
+              <span className="difficulty-target">Target: &lt;{d.target}ms</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Arena */}
       <div className="practice-arena">
 
-        {stage === 'IDLE' && (
+        {stage === 'IDLE' && mode === 'OFFLINE' && (
           <>
             <p className="practice-status">READY TO TRAIN</p>
             <button
@@ -164,6 +204,25 @@ export function Practice() {
               onClick={startRound}
             >
               START ROUND
+            </button>
+          </>
+        )}
+
+        {stage === 'IDLE' && mode === 'ON-CHAIN' && (
+          <>
+            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+              <p className="practice-status" style={{ color: 'var(--gold)' }}>ON-CHAIN CHALLENGE</p>
+              <p style={{ fontSize: '0.8rem', opacity: 0.6, maxWidth: '300px', margin: '0.5rem auto' }}>
+                Create a real duelo on Somnia against our automated Bot.
+                Winner takes the collective stake.
+              </p>
+            </div>
+            <button
+              className="btn-primary"
+              style={{ fontSize: '1rem', padding: '1rem 3rem', letterSpacing: '4px', borderColor: 'var(--gold)', color: 'var(--gold)' }}
+              onClick={startOnChain}
+            >
+              CHALLENGE BOT
             </button>
           </>
         )}
@@ -191,12 +250,13 @@ export function Practice() {
         )}
 
         {stage === 'FIRE' && (
-          <>
+          <div style={{ position: 'relative', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            {showScanline && <div className="scanline-sweep" />}
             <p className="practice-status practice-status--fire">FIRE!</p>
             <button className="practice-react-btn" onClick={handleReact}>
               REACT
             </button>
-          </>
+          </div>
         )}
 
         {stage === 'RESULT_HIT' && reactionMs !== null && (

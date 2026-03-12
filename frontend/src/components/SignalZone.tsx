@@ -11,9 +11,10 @@ export function SignalZone({ duelId }: { duelId: string }) {
     const { isArmed, gameResult, isFalseStart } = useReactivity(duelId);
 
     // Local UI State
-    const [humNode, setHumNode] = useState<OscillatorNode | null>(null);
+    const [humHandle, setHumHandle] = useState<{ stop: () => void } | null>(null);
     const [uiState, setUIState] = useState<UIState>('WAITING');
     const [hasReacted, setHasReacted] = useState(false);
+    const [showScanline, setShowScanline] = useState(false);
 
     // Determine UI state based on reactivity data
     useEffect(() => {
@@ -33,13 +34,13 @@ export function SignalZone({ duelId }: { duelId: string }) {
     // Initial hum when WAITING
     useEffect(() => {
         if (uiState === 'WAITING') {
-            const node = playHum();
-            setHumNode(node);
+            const handle = playHum();
+            setHumHandle(handle);
         }
         return () => {
-            if (humNode) {
-                humNode.stop();
-                setHumNode(null);
+            if (humHandle) {
+                humHandle.stop();
+                setHumHandle(null);
             }
         };
     }, [uiState]);
@@ -47,16 +48,22 @@ export function SignalZone({ duelId }: { duelId: string }) {
     // Handle Fire state
     useEffect(() => {
         if (uiState === 'FIRE') {
-            if (humNode) {
-                humNode.stop();
-                setHumNode(null);
+            if (humHandle) {
+                humHandle.stop();
+                setHumHandle(null);
             }
             playSnap();
-            document.body.classList.add('signal-fire');
+            setShowScanline(true);
+            setTimeout(() => setShowScanline(false), 500);
+
+            document.body.classList.add('signal-active');
             document.body.classList.add('shake');
-            setTimeout(() => document.body.classList.remove('shake'), 400);
+            setTimeout(() => {
+                document.body.classList.remove('signal-active');
+                document.body.classList.remove('shake');
+            }, 500);
         }
-    }, [uiState, humNode]);
+    }, [uiState, humHandle]);
 
     // Handle Resolved state
     useEffect(() => {
@@ -128,7 +135,8 @@ export function SignalZone({ duelId }: { duelId: string }) {
     // FIRE state
     if (uiState === 'FIRE') {
         return (
-            <div style={{ textAlign: 'center', marginTop: '10vh' }}>
+            <div style={{ textAlign: 'center', marginTop: '10vh', position: 'relative' }}>
+                {showScanline && <div className="scanline-sweep" />}
                 <h1 style={{ fontSize: '5rem', color: 'black', marginBottom: '2rem', fontWeight: '900', WebkitTextStroke: '1px var(--green)' }}>FIRE!</h1>
                 <button className="react-btn" onClick={handleReact}>
                     REACТ
@@ -155,11 +163,11 @@ export function SignalZone({ duelId }: { duelId: string }) {
             <div style={{ marginTop: '4rem', opacity: 0.6 }}>
                 <p style={{ fontSize: '0.8rem', color: 'var(--red)' }}>[ WARNING: EARLY REACTION DISQUALIFIES ]</p>
                 <button
-                  className="btn-primary"
-                  style={{ borderColor: 'var(--red)', color: 'var(--red)', marginTop: '1rem', fontSize: '0.7rem' }}
-                  onClick={handleReact}
+                    className="btn-primary"
+                    style={{ borderColor: 'var(--red)', color: 'var(--red)', marginTop: '1rem', fontSize: '0.7rem' }}
+                    onClick={handleReact}
                 >
-                  TEST FALSE START
+                    TEST FALSE START
                 </button>
             </div>
         </div>
