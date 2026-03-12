@@ -19,11 +19,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [walletClient, setWalletClient] = useState<any>(null);
 
   const setupWallet = async (ethereum: any) => {
-    const client = createWalletClient({
-      chain: somniaTestnet,
-      transport: custom(ethereum),
-    });
-
     try {
       await ethereum.request({
         method: 'wallet_switchEthereumChain',
@@ -46,13 +41,24 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           });
         } catch (addError) {
           console.error('Error adding chain:', addError);
+          return; // Stop if we can't add the chain
         }
+      } else {
+        console.error('Switch chain error:', switchError);
+        return; // Stop on any other switch error (like user rejection)
       }
     }
 
+    const client = createWalletClient({
+      chain: somniaTestnet,
+      transport: custom(ethereum),
+    });
+
     const [address] = await client.requestAddresses();
-    setAccount(address);
-    setWalletClient(client);
+    if (address) {
+      setAccount(address);
+      setWalletClient(client);
+    }
     return address;
   };
 

@@ -122,6 +122,7 @@ export function Home() {
               className={`connect-hero-btn ${connecting ? 'connect-hero-btn--loading' : ''}`}
               onClick={handleConnect}
               disabled={connecting}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               {connecting ? (
                 <span className="connect-loading">
