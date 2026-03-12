@@ -7,7 +7,7 @@ import { usePulseGame } from '../hooks/usePulseGame';
 import { Link } from 'react-router-dom';
 
 export function Duel() {
-    const { account, createDuel } = usePulseGame();
+    const { account, createDuel, joinDuel } = usePulseGame();
     const [duelId, setDuelId] = useState<string>('');
     const [opponent, setOpponent] = useState('');
     const [stake, setStake] = useState('1000000000000000'); // 0.001 STT default
@@ -17,22 +17,19 @@ export function Duel() {
 
     const handleChallenge = async () => {
         if (!opponent) return;
-        const tx = await createDuel(opponent as `0x${string}`, stake);
-        if (tx) {
-            alert('Duel created. Awaiting opponent join.. (ID 1 for demo)');
-            // For hackathon MVP without a backend indexer, we hardcode ID or get from event
-            // In a real app we parse logs from receipt
-            setActiveDuelId("1"); 
+        const result = await createDuel(opponent as `0x${string}`, stake);
+        if (result) {
+            // duelCount increments by 1 each time; result is the new duelId returned by the hook
+            setActiveDuelId(result.toString());
         }
     };
 
     const handleJoin = async () => {
         if (!duelId) return;
-        // The opponent provides their own SDK context for cron inside hook logic.
-        // Wait, hook logic doesn't have the SDK directly, let's bypass that UI constraint for the MVP
-        // and just trigger the cron in joinDuel inside the usePulseGame hook.
-        // The joinDuel Hook requires the `sdk` object which we need to import or instantiate.
-        alert('Calling joinDuel... Check console/metamask');
+        const tx = await joinDuel(duelId, stake);
+        if (tx) {
+            setActiveDuelId(duelId);
+        }
     };
 
     if (!account) {

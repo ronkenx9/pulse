@@ -5,9 +5,12 @@ export const somniaTestnet = defineChain({
   name: 'Somnia Testnet',
   nativeCurrency: { name: 'STT', symbol: 'STT', decimals: 18 },
   rpcUrls: {
-    default: { http: ['https://dream-rpc.somnia.network'] },
+    default: {
+      http: ['https://api.infra.testnet.somnia.network'],
+      webSocket: ['wss://api.infra.testnet.somnia.network/ws'],
+    },
   },
   blockExplorers: {
-    default: { name: 'Shannon', url: 'https://shannon-explorer.somnia.network' },
+    default: { name: 'Somnia Explorer', url: 'https://shannon-explorer.somnia.network' },
   },
 });

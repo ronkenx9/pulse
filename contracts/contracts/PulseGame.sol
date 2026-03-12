@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.30;
 
 import {IPulseGame} from "./interfaces/IPulseGame.sol";
 
@@ -98,15 +98,17 @@ contract PulseGame is IPulseGame {
         require(msg.sender == duel.player1 || msg.sender == duel.player2, "Not a player");
 
         if (duel.state == DuelState.ARMED_PENDING) {
-            // FALSE START
+            // FALSE START - IMMEDIATE RESOLUTION
             duel.state = DuelState.RESOLVED;
-            duel.winner = getOpponent(duelId, msg.sender);
+            address winner = getOpponent(duelId, msg.sender);
+            duel.winner = winner;
+            
             uint256 pot = duel.stake * 2;
-            payable(duel.winner).transfer(pot);
+            payable(winner).transfer(pot);
             
-            _updateElo(duel.winner, msg.sender);
+            _updateElo(winner, msg.sender);
             
-            emit DuelResolved(duelId, duel.winner, msg.sender, block.number, block.number);
+            emit DuelResolved(duelId, winner, msg.sender, block.number, block.number);
             return;
         }
 
@@ -134,7 +136,7 @@ contract PulseGame is IPulseGame {
 
         _updateElo(winner, loser);
 
-        emit DuelResolved(duelId, winner, loser, block.number, 0); // Loser block isn't known here natively unless tracked, using 0 or keeping simple
+        emit DuelResolved(duelId, winner, loser, block.number, 0);
     }
 
     function cancelDuel(uint256 duelId) external {
@@ -150,28 +152,24 @@ contract PulseGame is IPulseGame {
         uint256 eloW = elo[winner] == 0 ? 100000 : elo[winner];
         uint256 eloL = elo[loser] == 0 ? 100000 : elo[loser];
 
-        // Simplified Elo logic for solidity (since exponent is hard, 
-        // using fixed delta or simplified linear approximation for demo)
-        // A full Elo calculation requires exponentiation not native to EVM.
-        // For the sake of this prototype, we'll implement a simplified fixed-K swap
-        // A player gains K points on win, scaled by relative difference.
+        // 32.00 K-factor
+        uint256 K = 3200; 
         
-        uint256 K = 3200; // K=32 * 100
+        // ELO Calculation: Rn = Ro + K * (S - E)
+        // Expected Score E = 1 / (1 + 10^((Rb-Ra)/400))
+        // We use a linear approximation for E in Solidity to avoid expensive exponents
+        // E = 0.5 + (Ra - Rb) / 800 (simplified linear version)
         
-        // Very rough linear approximation for Expected Score since we can't do floating point 10^(...)
-        // In a real app we'd use PRBMath or an oracle, but this is a pure EVM state representation.
-        uint256 diff = eloW > eloL ? eloW - eloL : eloL - eloW;
-        uint256 expectedDelta = diff > 40000 ? 1600 : (diff * 1600) / 40000;
+        int256 diff = int256(eloW) - int256(eloL);
+        int256 expectedScoreScaled = 5000 + (diff * 5000) / 40000; // Scaled by 10000
+        if (expectedScoreScaled > 9900) expectedScoreScaled = 9900;
+        if (expectedScoreScaled < 100) expectedScoreScaled = 100;
         
-        uint256 delta;
-        if (eloW >= eloL) {
-            delta = K - expectedDelta;
-        } else {
-            delta = K + expectedDelta;
-        }
+        // Delta = K * (1 - E)
+        uint256 delta = uint256((int256(K) * (10000 - expectedScoreScaled)) / 10000);
 
         elo[winner] = eloW + delta;
-        elo[loser] = eloL >= delta ? eloL - delta : 0;
+        elo[loser] = eloL >= delta ? eloL - delta : 1; // Minimum 1 ELO
 
         records[winner].wins++;
         records[winner].duelsPlayed++;

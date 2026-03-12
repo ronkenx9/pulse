@@ -1,9 +1,6 @@
-export const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+export const audioCtx = new AudioContext();
 
 export function playHum() {
-  if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-  }
   const osc = audioCtx.createOscillator();
   osc.frequency.value = 60;
   osc.type = 'sawtooth';
@@ -12,13 +9,10 @@ export function playHum() {
   osc.connect(gain);
   gain.connect(audioCtx.destination);
   osc.start();
-  return osc; 
+  return osc;
 }
 
 export function playSnap() {
-  if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-  }
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.frequency.value = 880;
@@ -32,9 +26,6 @@ export function playSnap() {
 }
 
 export function playBassDrop() {
-  if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-  }
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.frequency.setValueAtTime(120, audioCtx.currentTime);

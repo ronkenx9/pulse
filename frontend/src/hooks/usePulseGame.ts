@@ -1,13 +1,37 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { createWalletClient, custom, createPublicClient, http, encodeFunctionData } from 'viem';
 import { somniaTestnet } from '../lib/chain';
 import { PULSE_GAME_ADDRESS, pulseGameAbi } from '../lib/contracts';
-import { SDK } from '@somnia-chain/reactivity';
 
 const publicClient = createPublicClient({
   chain: somniaTestnet,
   transport: http()
 });
+
+// DuelState values matching the contract (using const object for TS erasableSyntaxOnly compat)
+export const DuelState = {
+  OPEN: 0,
+  ARMED_PENDING: 1,
+  ARMED: 2,
+  RESOLVED: 3,
+  CANCELLED: 4,
+} as const;
+export type DuelState = typeof DuelState[keyof typeof DuelState];
+
+export interface Duel {
+  player1: `0x${string}`;
+  player2: `0x${string}`;
+  stake: bigint;
+  signalBlock: bigint;
+  winner: `0x${string}`;
+  state: DuelState;
+}
+
+export interface DuelRecord {
+  wins: bigint;
+  losses: bigint;
+  duelsPlayed: bigint;
+}
 
 export function usePulseGame() {
   const [account, setAccount] = useState<`0x${string}` | null>(null);
@@ -27,6 +51,60 @@ export function usePulseGame() {
     }
   };
 
+  // Read: Get duel state by ID
+  const getDuel = useCallback(async (duelId: string): Promise<Duel | null> => {
+    try {
+      const result = await publicClient.readContract({
+        address: PULSE_GAME_ADDRESS as `0x${string}`,
+        abi: pulseGameAbi,
+        functionName: 'getDuel',
+        args: [BigInt(duelId)]
+      });
+      // Result is tuple: [player1, player2, stake, signalBlock, winner, state]
+      const [player1, player2, stake, signalBlock, winner, state] = result as [
+        `0x${string}`, `0x${string}`, bigint, bigint, `0x${string}`, number
+      ];
+      return { player1, player2, stake, signalBlock, winner, state: state as DuelState };
+    } catch (err) {
+      console.error('getDuel error:', err);
+      return null;
+    }
+  }, []);
+
+  // Read: Get player's duel record
+  const getRecord = useCallback(async (player: `0x${string}`): Promise<DuelRecord | null> => {
+    try {
+      const result = await publicClient.readContract({
+        address: PULSE_GAME_ADDRESS as `0x${string}`,
+        abi: pulseGameAbi,
+        functionName: 'getRecord',
+        args: [player]
+      });
+      // Result is tuple: [wins, losses, duelsPlayed]
+      const [wins, losses, duelsPlayed] = result as [bigint, bigint, bigint];
+      return { wins, losses, duelsPlayed };
+    } catch (err) {
+      console.error('getRecord error:', err);
+      return null;
+    }
+  }, []);
+
+  // Read: Get player's ELO
+  const getElo = useCallback(async (player: `0x${string}`): Promise<bigint | null> => {
+    try {
+      const elo = await publicClient.readContract({
+        address: PULSE_GAME_ADDRESS as `0x${string}`,
+        abi: pulseGameAbi,
+        functionName: 'getElo',
+        args: [player]
+      });
+      return elo as bigint;
+    } catch (err) {
+      console.error('getElo error:', err);
+      return null;
+    }
+  }, []);
+
   const createDuel = async (opponent: `0x${string}`, stakeStr: string) => {
     if (!walletClient || !account) return;
     try {
@@ -40,13 +118,20 @@ export function usePulseGame() {
         account
       });
       await publicClient.waitForTransactionReceipt({ hash });
-      return hash;
+      // duelCount == newly created duelId (contract does ++duelCount before returning)
+      const count = await publicClient.readContract({
+        address: PULSE_GAME_ADDRESS as `0x${string}`,
+        abi: pulseGameAbi,
+        functionName: 'duelCount',
+        args: []
+      });
+      return (count as bigint).toString();
     } catch (err) {
       console.error(err);
     }
   };
 
-  const joinDuel = async (duelId: string, stakeStr: string, sdk: SDK) => {
+  const joinDuel = async (duelId: string, stakeStr: string) => {
     if (!walletClient || !account) return;
     try {
       const stake = BigInt(stakeStr);
@@ -60,17 +145,14 @@ export function usePulseGame() {
       });
       await publicClient.waitForTransactionReceipt({ hash });
 
-      // After joining, schedule the random arming signal via Cron!
+      // After joining, schedule armSignal via Cron (logged for now — handled on-chain via Reactivity)
       const randomDelayMs = Math.floor(Math.random() * 6000) + 2000; // 2-8s
       const calldata = encodeFunctionData({
         abi: pulseGameAbi,
         functionName: 'armSignal',
         args: [BigInt(duelId)]
       });
-
-      // Note: Actual createCronSubscription requires specific API. Mocking success for demo 
-      // as it's missing from the type definition
-      console.log(`Cron armed for ${randomDelayMs}ms`, calldata, sdk); // Use sdk to avoid unused var
+      console.log(`[PULSE] Duel ${duelId} joined. armSignal calldata ready (delay ${randomDelayMs}ms):`, calldata);
 
       return hash;
     } catch (err) {
@@ -95,5 +177,14 @@ export function usePulseGame() {
     }
   };
 
-  return { account, connect, createDuel, joinDuel, submitReaction };
+  return {
+    account,
+    connect,
+    createDuel,
+    joinDuel,
+    submitReaction,
+    getDuel,
+    getRecord,
+    getElo
+  };
 }

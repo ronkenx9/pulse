@@ -37,22 +37,27 @@ export function useReactivity(duelId: string | null) {
           onData: (data: any) => {
             if (disconnected) return;
             
-            // Check atomic struct state
-            const duelState = data.ethCalls[0].result?.[5]; // State enum index
+            // Atomic state
+            const duelState = data.ethCalls[0].result?.[5]; 
             
             if (data.event?.name === 'SignalFired') {
-              setSignalTimestamp(performance.now());
+              const now = performance.now();
+              setSignalTimestamp(now);
               setIsArmed(true);
             }
             
             if (data.event?.name === 'DuelResolved') {
-              const clientReactionMs = signalTimestamp ? performance.now() - signalTimestamp : 0;
-              setGameResult({ 
-                ...data.event.args, 
-                clientReactionMs 
+              setSignalTimestamp((prevStamp) => {
+                const now = performance.now();
+                const clientReactionMs = prevStamp ? now - prevStamp : 0;
+                setGameResult({ 
+                  ...data.event.args, 
+                  clientReactionMs 
+                });
+                return prevStamp;
               });
               
-              if (duelState === 3 && !isArmed) { // RESOLVED but never ARMED
+              if (duelState === 3 && !isArmed) { 
                  setIsFalseStart(true);
               }
             }
@@ -71,11 +76,10 @@ export function useReactivity(duelId: string | null) {
     return () => {
       disconnected = true;
       if (subId) {
-        // SDK doesn't natively expose unsubscribe yet, this is a placeholder
-        // sdk.unsubscribe(subId); 
+        // cleanup placeholder if available later
       }
     };
-  }, [duelId, signalTimestamp, isArmed]);
+  }, [duelId, isArmed]);
 
   return { signalTimestamp, isArmed, gameResult, isFalseStart, sdk };
 }
