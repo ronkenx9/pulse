@@ -225,4 +225,32 @@ async function startBot() {
   setInterval(() => { }, 60_000);
 }
 
-startBot().catch(console.error);
+// ── Crash recovery with exponential backoff ───────────────────────────────────
+let restartAttempts = 0;
+const MAX_RESTART_DELAY_MS = 60_000;
+
+async function runWithRecovery() {
+  while (true) {
+    try {
+      await startBot();
+      // startBot() only exits if the keep-alive interval is cleared (shouldn't happen)
+      restartAttempts = 0;
+    } catch (err) {
+      restartAttempts++;
+      const delay = Math.min(1000 * 2 ** restartAttempts, MAX_RESTART_DELAY_MS);
+      console.error(`\n[BOT] Crashed (attempt ${restartAttempts}). Restarting in ${delay}ms...`, err);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+}
+
+process.on('uncaughtException', (err) => {
+  console.error('[BOT] uncaughtException:', err);
+  // Allow the loop to handle restart
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[BOT] unhandledRejection:', reason);
+});
+
+runWithRecovery();

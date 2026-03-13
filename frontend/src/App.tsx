@@ -5,6 +5,7 @@ import { Home } from './pages/Home';
 import { Duel } from './pages/Duel';
 import { Leaderboard } from './pages/Leaderboard';
 import { Practice } from './pages/Practice';
+import { HeartbeatBar } from './components/HeartbeatBar';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <div className="crt-noise"></div>
 
         <BrowserRouter>
+          <HeartbeatBar />
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/duel" element={<Duel />} />

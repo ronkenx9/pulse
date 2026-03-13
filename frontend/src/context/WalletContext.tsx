@@ -5,21 +5,22 @@ import { useConnectModal } from '@rainbow-me/rainbowkit';
 interface WalletContextType {
   account: `0x${string}` | null;
   walletClient: any;
-  isConnecting: boolean;
   connect: () => void;
+  isConnecting: boolean;
 }
 
 const WalletContext = createContext<WalletContextType>({
   account: null,
   walletClient: null,
+  connect: () => {},
   isConnecting: false,
-  connect: () => { },
 });
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  // Only treat as connected when status is strictly 'connected'.
-  // 'reconnecting' emits a valid address while wagmi tries to restore a prior
-  // session — if the RPC is slow this causes the button to flicker visible/hidden.
+  // Only treat as connected when status is exactly 'connected'.
+  // During 'reconnecting' wagmi briefly exposes an address while trying to
+  // restore a cached session — this causes the connect button to flash
+  // visible/hidden on every page load. Checking status prevents that.
   const { address, status } = useAccount();
   const { data: walletClient } = useWalletClient();
   const { openConnectModal } = useConnectModal();
@@ -29,15 +30,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const isConnecting = status === 'connecting' || status === 'reconnecting';
 
-  // openConnectModal is fire-and-forget (returns void). Keep connect() synchronous
-  // so callers don't try to await it and accidentally fire setConnecting(false)
-  // before the modal even opens.
-  const connect = () => {
-    openConnectModal?.();
-  };
+  // openConnectModal is synchronous (fire-and-forget). Do NOT wrap in async
+  // or add setConnecting state around it — it returns immediately while the
+  // modal is still open, causing an instant loading-state flash.
+  const connect = () => openConnectModal?.();
 
   return (
-    <WalletContext.Provider value={{ account, walletClient, isConnecting, connect }}>
+    <WalletContext.Provider value={{ account, walletClient, connect, isConnecting }}>
       {children}
     </WalletContext.Provider>
   );

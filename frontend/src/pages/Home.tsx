@@ -1,185 +1,124 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createPublicClient, http } from 'viem';
-import { useWallet } from '../context/WalletContext';
 import { somniaTestnet } from '../lib/chain';
 import { PULSE_GAME_ADDRESS, pulseGameAbi } from '../lib/contracts';
-import { OnboardingSlideshow } from '../components/OnboardingSlideshow';
-import { ensureAudio } from '../lib/audio';
+import { ensureAudio, startAmbient, playHeartbeatTick } from '../lib/audio';
 
 const publicClient = createPublicClient({ chain: somniaTestnet, transport: http() });
 
-const PARTICLES = [
-  { id: 0, style: { top: '18%', left: '2%', '--pa': '38deg', '--pd': '0s', '--pdur': '3.2s' } },
-  { id: 1, style: { top: '12%', left: '94%', '--pa': '-145deg', '--pd': '0.4s', '--pdur': '2.8s' } },
-  { id: 2, style: { top: '82%', left: '5%', '--pa': '-28deg', '--pd': '0.8s', '--pdur': '3.5s' } },
-  { id: 3, style: { top: '78%', left: '90%', '--pa': '152deg', '--pd': '0.2s', '--pdur': '3.0s' } },
-  { id: 4, style: { top: '2%', left: '48%', '--pa': '92deg', '--pd': '1.0s', '--pdur': '2.5s' } },
-  { id: 5, style: { top: '48%', left: '1%', '--pa': '2deg', '--pd': '0.6s', '--pdur': '3.8s' } },
-  { id: 6, style: { top: '58%', left: '97%', '--pa': '-178deg', '--pd': '1.4s', '--pdur': '2.6s' } },
-  { id: 7, style: { top: '97%', left: '28%', '--pa': '-82deg', '--pd': '0.3s', '--pdur': '3.3s' } },
-];
+const ECG_PATH = 'M0,30 L18,30 Q21,26 24,30 L28,30 L30,32 L33,4 L36,56 L39,30 L52,30 Q57,22 62,30 L100,30';
 
 export function Home() {
-  // isConnecting is wagmi's own status — no local connecting state needed.
-  // Driving it from wagmi prevents the flash caused by async connect() resolving
-  // before the RainbowKit modal even opens.
-  const { account, connect, isConnecting } = useWallet();
   const navigate = useNavigate();
-  const [justConnected, setJustConnected] = useState(false);
   const [duelCount, setDuelCount] = useState<string | null>(null);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [prevAccount, setPrevAccount] = useState<string | null>(null);
+  const [beat, setBeat] = useState(false);
+  const [entered, setEntered] = useState(false);
+  const beatRef = useRef(false);
 
   useEffect(() => {
-    publicClient.readContract({
-      address: PULSE_GAME_ADDRESS as `0x${string}`,
-      abi: pulseGameAbi,
-      functionName: 'duelCount',
-    }).then((c) => setDuelCount((c as bigint).toString())).catch(() => { });
+    publicClient
+      .readContract({ address: PULSE_GAME_ADDRESS as `0x${string}`, abi: pulseGameAbi, functionName: 'duelCount' })
+      .then((c) => setDuelCount((c as bigint).toString()))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (account && !prevAccount) {
-      setJustConnected(true);
-      setPrevAccount(account);
-      const hasOnboarded = localStorage.getItem('pulse_onboarded');
-      if (!hasOnboarded) {
-        setTimeout(() => setShowOnboarding(true), 700);
-      }
-    }
-    if (!account && prevAccount) {
-      // Wallet disconnected — reset so button reappears cleanly
-      setPrevAccount(null);
-      setJustConnected(false);
-    }
-  }, [account, prevAccount]);
+    const CYCLE = Math.round((60 / 68) * 1000);
+    const id = setInterval(() => {
+      if (beatRef.current) return;
+      setBeat(true);
+      beatRef.current = true;
+      playHeartbeatTick();
+      setTimeout(() => { setBeat(false); beatRef.current = false; }, 150);
+    }, CYCLE);
+    return () => clearInterval(id);
+  }, []);
 
-  // Fire-and-forget — RainbowKit owns the modal lifecycle
-  const handleConnect = () => {
-    ensureAudio();
-    connect();
-  };
-
-  const handleOnboardingComplete = () => {
-    setShowOnboarding(false);
-    localStorage.setItem('pulse_onboarded', '1');
-    navigate('/duel');
-  };
-
-  const handleOnboardingSkip = () => {
-    setShowOnboarding(false);
-    localStorage.setItem('pulse_onboarded', '1');
+  const handleEnter = async () => {
+    await ensureAudio();
+    startAmbient();
+    setEntered(true);
+    setTimeout(() => navigate('/duel'), 680);
   };
 
   return (
     <div className="home-root">
-      {/* Circuit grid background */}
-      <svg className="circuit-grid" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
-        {[80, 160, 260, 380, 500, 620, 720, 820, 880].map(y => (
-          <line key={`h${y}`} x1="0" y1={y} x2="1440" y2={y}
-            stroke="rgba(139,43,226,0.10)" strokeWidth="1" />
-        ))}
-        {[160, 320, 480, 640, 720, 800, 960, 1120, 1280].map(x => (
-          <line key={`v${x}`} x1={x} y1="0" x2={x} y2="900"
-            stroke="rgba(139,43,226,0.10)" strokeWidth="1" />
-        ))}
-        <line x1="0" y1="0" x2="350" y2="900" stroke="rgba(0,255,255,0.03)" strokeWidth="1.5" />
-        <line x1="1440" y1="0" x2="1090" y2="900" stroke="rgba(0,255,255,0.03)" strokeWidth="1.5" />
-        {/* Corner brackets */}
-        <polyline points="0,0 60,0 60,40" stroke="rgba(0,255,255,0.25)" strokeWidth="1.5" fill="none" />
-        <polyline points="1440,0 1380,0 1380,40" stroke="rgba(0,255,255,0.25)" strokeWidth="1.5" fill="none" />
-        <polyline points="0,900 60,900 60,860" stroke="rgba(0,255,255,0.25)" strokeWidth="1.5" fill="none" />
-        <polyline points="1440,900 1380,900 1380,860" stroke="rgba(0,255,255,0.25)" strokeWidth="1.5" fill="none" />
+      <svg className="ecg-grid-bg" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <pattern id="sg" width="30" height="30" patternUnits="userSpaceOnUse">
+            <path d="M30 0L0 0 0 30" fill="none" stroke="rgba(0,255,136,0.035)" strokeWidth="0.5" />
+          </pattern>
+          <pattern id="lg" width="150" height="150" patternUnits="userSpaceOnUse">
+            <rect width="150" height="150" fill="url(#sg)" />
+            <path d="M150 0L0 0 0 150" fill="none" stroke="rgba(0,255,136,0.07)" strokeWidth="1" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#lg)" />
       </svg>
 
-      {/* Radial glow at center */}
-      <div className="center-glow" />
+      <div className="ecg-trace-wrap">
+        <svg className="ecg-trace" viewBox="0 0 400 60" preserveAspectRatio="none">
+          <defs>
+            <pattern id="ecgPat" x="0" y="0" width="100" height="60" patternUnits="userSpaceOnUse">
+              <path d={ECG_PATH} stroke="rgba(0,255,136,0.5)" strokeWidth="1.5" fill="none" />
+            </pattern>
+          </defs>
+          <rect width="400" height="60" fill="url(#ecgPat)" className="ecg-scroll" />
+        </svg>
+      </div>
 
-      {/* Particle energy lines */}
-      {PARTICLES.map(p => (
-        <div key={p.id} className="particle-line" style={p.style as React.CSSProperties} />
-      ))}
+      <div className={`ecg-glow-pulse${beat ? ' ecg-glow-pulse--beat' : ''}`} />
 
-      {/* Main centered content */}
-      <div className="home-center">
+      <svg className="corner-brackets" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
+        <polyline points="0,0 48,0 48,32" stroke="rgba(0,255,136,0.28)" strokeWidth="1.5" fill="none" />
+        <polyline points="1440,0 1392,0 1392,32" stroke="rgba(0,255,136,0.28)" strokeWidth="1.5" fill="none" />
+        <polyline points="0,900 48,900 48,868" stroke="rgba(0,255,136,0.28)" strokeWidth="1.5" fill="none" />
+        <polyline points="1440,900 1392,900 1392,868" stroke="rgba(0,255,136,0.28)" strokeWidth="1.5" fill="none" />
+      </svg>
 
+      <div className={`home-center${beat ? ' home-center--beat' : ''}${entered ? ' home-center--exit' : ''}`}>
         <div className="home-title-block">
-          <div className="home-title-eyebrow">SOMNIA TESTNET</div>
+          <div className="home-title-eyebrow">SOMNIA TESTNET · CHAIN 50312</div>
           <h1 className="home-title">PULSE</h1>
           <p className="home-subtitle">REAL-TIME ON-CHAIN REFLEX DUELS</p>
-          <p className="home-subtext">
-            Powered by Somnia Reactivity · Zero polling · Milliseconds decide everything
-          </p>
+          <p className="home-subtext">Zero polling · Somnia Reactivity · Milliseconds decide everything</p>
         </div>
 
-        {/* THE MAIN CHARACTER */}
-        <div className={`hero-btn-wrap ${account ? 'hero-btn-wrap--connected' : ''} ${justConnected ? 'hero-btn-wrap--flash' : ''}`}>
-          <div className="orbit-ring" />
-          <div className="orbit-ring orbit-ring--2" />
-          <div className="orbit-ring orbit-ring--3" />
-
-          {!account ? (
-            <button
-              className={`connect-hero-btn ${isConnecting ? 'connect-hero-btn--loading' : ''}`}
-              onClick={handleConnect}
-              disabled={isConnecting}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-              {isConnecting ? (
-                <span className="connect-loading">
-                  <span className="dot" />
-                  <span className="dot" style={{ animationDelay: '0.2s' }} />
-                  <span className="dot" style={{ animationDelay: '0.4s' }} />
-                </span>
-              ) : 'CONNECT WALLET'}
-            </button>
-          ) : (
-            <div className="connected-ctas">
-              <div className="connected-address">
-                <span className="address-dot" />
-                {account.slice(0, 6)}···{account.slice(-4)}
-              </div>
-              <div className="cta-row">
-                <Link to="/duel">
-                  <button className="cta-btn cta-btn--primary" onClick={() => ensureAudio()}>ENTER ARENA</button>
-                </Link>
-                <Link to="/practice">
-                  <button className="cta-btn cta-btn--secondary" onClick={() => ensureAudio()}>PRACTICE</button>
-                </Link>
-              </div>
-              <Link to="/leaderboard" className="leaderboard-link">
-                VIEW LEADERBOARD →
-              </Link>
-            </div>
-          )}
+        <div className="arena-btn-wrap">
+          <div className="sonar-ring sonar-ring--1" />
+          <div className="sonar-ring sonar-ring--2" />
+          <div className="sonar-ring sonar-ring--3" />
+          <button
+            className={`enter-arena-btn${entered ? ' enter-arena-btn--entering' : ''}`}
+            onClick={handleEnter}
+            disabled={entered}
+          >
+            {entered ? (
+              <span className="entering-text">INITIALISING...</span>
+            ) : (
+              <>
+                <span className="enter-line-1">ENTER</span>
+                <span className="enter-line-2">THE ARENA</span>
+              </>
+            )}
+          </button>
         </div>
 
-        {!account && (
-          <p className="hero-tagline">
-            False starts forfeit the entire pot. React with precision.
-          </p>
-        )}
+        <p className="hero-tagline">False starts forfeit the entire pot. React with precision.</p>
       </div>
 
-      {/* Live stat pill */}
       <div className="home-stat">
         <span className="stat-label">DUELS FOUGHT</span>
-        <span className="stat-value numeric">
-          {duelCount !== null ? Number(duelCount).toLocaleString() : '···'}
-        </span>
+        <span className="stat-value numeric">{duelCount !== null ? Number(duelCount).toLocaleString() : '· · ·'}</span>
       </div>
 
-      <div className="somnia-badge">
-        POWERED BY <span>SOMNIA</span>
-      </div>
+      <div className="somnia-badge">POWERED BY <span>SOMNIA</span></div>
 
-      {showOnboarding && (
-        <OnboardingSlideshow
-          onComplete={handleOnboardingComplete}
-          onSkip={handleOnboardingSkip}
-        />
-      )}
+      <div className={`bpm-indicator${beat ? ' bpm-indicator--beat' : ''}`}>
+        <span className="bpm-dot" />
+        <span className="bpm-label">68 BPM</span>
+      </div>
     </div>
   );
 }

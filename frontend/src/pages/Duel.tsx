@@ -10,7 +10,7 @@ import { usePulseGame } from '../hooks/usePulseGame';
 const BASE_URL = window.location.origin;
 
 export function Duel() {
-  const { account, createDuel, joinDuel } = usePulseGame();
+  const { account, connect, createDuel, joinDuel } = usePulseGame();
   const [searchParams] = useSearchParams();
 
   // Stake in human-readable STT (e.g. "0.001")
@@ -105,12 +105,20 @@ export function Duel() {
   // ── wallet guard ─────────────────────────────────────────────
   if (!account) {
     return (
-      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '2rem' }}>
-        <h2 style={{ color: 'var(--cyan)', letterSpacing: '4px' }}>WALLET NOT CONNECTED</h2>
-        <Link to="/">
-          <button className="btn-primary" style={{ fontSize: '1rem', padding: '1rem 2rem' }}>
-            ← BACK TO HOME
-          </button>
+      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '2.5rem', textAlign: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.5rem,8vw,5rem)', fontWeight: 900, color: '#fff', letterSpacing: '0.1em', textShadow: '0 0 30px rgba(0,255,136,0.4)' }}>PULSE</h1>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(0.55rem,1.2vw,0.8rem)', letterSpacing: '5px', color: 'var(--cyan)' }}>CONNECT TO ENTER THE ARENA</p>
+        </div>
+        <button
+          className="connect-hero-btn"
+          style={{ fontSize: '1rem', padding: '1.2rem 2.8rem', borderRadius: '0' }}
+          onClick={connect}
+        >
+          CONNECT WALLET
+        </button>
+        <Link to="/" style={{ fontFamily: 'var(--font-body)', fontSize: '0.7rem', letterSpacing: '3px', color: 'rgba(200,200,232,0.35)', textDecoration: 'none' }}>
+          ← BACK TO HOME
         </Link>
       </div>
     );
