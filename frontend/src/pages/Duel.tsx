@@ -1,70 +1,69 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { parseEther } from 'viem';
 import { MatchFeed } from '../components/MatchFeed';
 import { SignalZone } from '../components/SignalZone';
 import { EloDisplay } from '../components/EloDisplay';
 import { usePulseGame } from '../hooks/usePulseGame';
+import { startAmbient } from '../lib/audio';
 
-// Derive shareable base URL from current page origin
 const BASE_URL = window.location.origin;
 
 export function Duel() {
-  const { account, connect, createDuel, joinDuel } = usePulseGame();
+  const { account, createDuel, joinDuel } = usePulseGame();
   const [searchParams] = useSearchParams();
 
-  // Stake in human-readable STT (e.g. "0.001")
   const [stakeSTT, setStakeSTT] = useState('0.001');
-
-  // Open challenge state
   const [openChallengeId, setOpenChallengeId] = useState<string | null>(null);
   const [openChallenging, setOpenChallenging] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
-
-  // Direct challenge state
   const [showDirect, setShowDirect] = useState(false);
   const [opponent, setOpponent] = useState('');
-  const [directChallenging, setDirectChallenging] = useState(false);
-
-  // Join state
   const [joinId, setJoinId] = useState('');
-  const [joinInfo, setJoinInfo] = useState<{ stake: string } | null>(null);
   const [joining, setJoining] = useState(false);
-
-  // Active duel
   const [activeDuelId, setActiveDuelId] = useState<string | null>(null);
 
-  // Auto-fill from URL params
-  useEffect(() => {
-    // ?join=ID — pre-fill the join field (shared invite link)
-    const paramId = searchParams.get('join');
-    if (paramId) {
-      setJoinId(paramId);
-      setJoinInfo({ stake: stakeSTT });
-    }
+  const autoOpponentRef = useRef<string | null>(null);
+  const autoStakeRef = useRef<string | null>(null);
+  const autoChallengedRef = useRef(false);
 
-    // ?opponent=ADDRESS&stake=AMOUNT — pre-fill direct challenge (bot / Practice mode)
+  useEffect(() => {
+    startAmbient('ARENA');
+  }, []);
+
+  useEffect(() => {
+    const paramId = searchParams.get('join');
+    if (paramId) setJoinId(paramId);
+
     const paramOpponent = searchParams.get('opponent');
-    const paramStake    = searchParams.get('stake');
+    const paramStake = searchParams.get('stake');
     if (paramOpponent && /^0x[0-9a-fA-F]{40}$/.test(paramOpponent)) {
       setOpponent(paramOpponent);
-      setShowDirect(true); // auto-open the collapsible so user sees it immediately
       if (paramStake) setStakeSTT(paramStake);
+      autoOpponentRef.current = paramOpponent;
+      autoStakeRef.current = paramStake ?? stakeSTT;
     }
-  }, [searchParams]); // eslint-disable-line
+  }, [searchParams]);
 
-  // ── handlers ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!account || autoChallengedRef.current || !autoOpponentRef.current) return;
+    autoChallengedRef.current = true;
+    const stakeVal = autoStakeRef.current ?? '0.001';
+    let stakeWei: bigint;
+    try { stakeWei = parseEther(stakeVal); } catch { stakeWei = parseEther('0.001'); }
+
+    createDuel(autoOpponentRef.current as `0x${string}`, stakeWei.toString())
+      .then(id => { if (id) setActiveDuelId(id); })
+      .catch(() => { autoChallengedRef.current = false; });
+  }, [account]);
 
   const handleOpenChallenge = async () => {
     setOpenChallenging(true);
     try {
-      // address(0) = anyone can join
       const stakeWei = parseEther(stakeSTT || '0.001').toString();
       const id = await createDuel('0x0000000000000000000000000000000000000000', stakeWei);
       if (id) setOpenChallengeId(id);
-    } finally {
-      setOpenChallenging(false);
-    }
+    } finally { setOpenChallenging(false); }
   };
 
   const handleCopyLink = () => {
@@ -76,13 +75,12 @@ export function Duel() {
 
   const handleDirectChallenge = async () => {
     if (!opponent || !/^0x[0-9a-fA-F]{40}$/.test(opponent)) return;
-    setDirectChallenging(true);
     try {
       const stakeWei = parseEther(stakeSTT || '0.001').toString();
       const id = await createDuel(opponent as `0x${string}`, stakeWei);
       if (id) setActiveDuelId(id);
-    } finally {
-      setDirectChallenging(false);
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -93,227 +91,146 @@ export function Duel() {
       const stakeWei = parseEther(stakeSTT || '0.001').toString();
       const tx = await joinDuel(joinId, stakeWei);
       if (tx) setActiveDuelId(joinId);
-    } finally {
-      setJoining(false);
-    }
+    } finally { setJoining(false); }
   };
 
-  const handleEnterOpenDuel = () => {
-    if (openChallengeId) setActiveDuelId(openChallengeId);
-  };
-
-  // ── wallet guard ─────────────────────────────────────────────
-  if (!account) {
-    return (
-      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '2.5rem', textAlign: 'center' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.5rem,8vw,5rem)', fontWeight: 900, color: '#fff', letterSpacing: '0.1em', textShadow: '0 0 30px rgba(0,255,136,0.4)' }}>PULSE</h1>
-          <p style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(0.55rem,1.2vw,0.8rem)', letterSpacing: '5px', color: 'var(--cyan)' }}>CONNECT TO ENTER THE ARENA</p>
-        </div>
-        <button
-          className="connect-hero-btn"
-          style={{ fontSize: '1rem', padding: '1.2rem 2.8rem', borderRadius: '0' }}
-          onClick={connect}
-        >
-          CONNECT WALLET
-        </button>
-        <Link to="/" style={{ fontFamily: 'var(--font-body)', fontSize: '0.7rem', letterSpacing: '3px', color: 'rgba(200,200,232,0.35)', textDecoration: 'none' }}>
-          ← BACK TO HOME
-        </Link>
-      </div>
-    );
-  }
-
-  // ── active duel ──────────────────────────────────────────────
   if (activeDuelId) {
     return (
-      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-        <div style={{ flex: '1', padding: '2rem', position: 'relative' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-              <button
-                className="btn-primary"
-                style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem' }}
-                onClick={() => setActiveDuelId(null)}
-              >
-                ← EXIT
-              </button>
-              <h2 style={{ color: 'var(--cyan)' }}>DUEL #{activeDuelId}</h2>
+      <div className="flex-center" style={{ height: '100vh', overflow: 'hidden' }}>
+        <div style={{ flex: '1', padding: '2rem', height: '100%', position: 'relative' }} className="pulse-tensed">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+              <button className="btn-precision" style={{ fontSize: '0.6rem' }} onClick={() => setActiveDuelId(null)}>← TERMINATE</button>
+              <h2 className="title-display" style={{ fontSize: '1.2rem' }}>ARENA_SESSION_{activeDuelId}</h2>
             </div>
-            <EloDisplay player={account} />
+            <div className="stat-box">
+              <span className="stat-label">PILOT_ELO</span>
+              <EloDisplay player={account!} />
+            </div>
           </div>
-          <SignalZone duelId={activeDuelId} />
+          <div className="panel" style={{ height: 'calc(100% - 120px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <SignalZone duelId={activeDuelId} />
+          </div>
         </div>
-        <div style={{ flex: '0 0 300px', borderLeft: '1px solid var(--purple)', padding: '1.5rem', overflow: 'auto' }}>
-          <h3 style={{ color: 'var(--cyan)', marginBottom: '1rem', fontSize: '0.85rem', letterSpacing: '3px' }}>NEURAL_FEED</h3>
+        <div style={{ width: '320px', height: '100%', borderLeft: '1px solid var(--border-dim)', background: 'var(--bg-panel)', padding: '2rem' }}>
+          <h3 className="title-display" style={{ fontSize: '0.7rem', color: 'var(--gold)', marginBottom: '2rem' }}>NEURAL FEED</h3>
           <MatchFeed />
         </div>
       </div>
     );
   }
 
-  // ── matchmaking lobby ────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div className="flex-center column" style={{ height: '100vh', padding: '2rem' }}>
 
-      {/* Center — matchmaking */}
-      <div style={{ flex: '1', padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0' }}>
-
-        {/* Header */}
-        <div style={{ width: '100%', maxWidth: '560px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-          <Link to="/" style={{ textDecoration: 'none' }}>
-            <button className="btn-primary" style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem' }}>← HOME</button>
-          </Link>
-          <EloDisplay player={account} />
-          <Link to="/practice" style={{ textDecoration: 'none' }}>
-            <button className="btn-primary" style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem' }}>PRACTICE</button>
-          </Link>
+      <div style={{ width: '100%', maxWidth: '800px', marginBottom: '3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Link to="/lobby">
+          <button className="btn-precision" style={{ fontSize: '0.6rem' }}>← LOBBY</button>
+        </Link>
+        <div className="stat-box">
+          <span className="stat-label">BIOMETRIC_PROFILE</span>
+          <EloDisplay player={account!} />
         </div>
+      </div>
 
-        <div className="panel" style={{ width: '100%', maxWidth: '560px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <h3 style={{ color: 'var(--gold)', letterSpacing: '3px' }}>INITIALIZE DUEL</h3>
-            <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.7rem', color: 'rgba(200,200,232,0.4)' }}>
-              {account.slice(0, 6)}···{account.slice(-4)}
-            </span>
-          </div>
+      <div className="panel" style={{ width: '100%', maxWidth: '800px', display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '3rem' }}>
 
-          {/* Stake */}
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.8rem', letterSpacing: '2px', color: 'rgba(200,200,232,0.6)' }}>
-              STAKE (STT)
-            </label>
+        <div className="flex-center column" style={{ borderRight: '1px solid var(--border-dim)', paddingRight: '3rem', alignItems: 'flex-start' }}>
+          <h3 className="title-display" style={{ fontSize: '1.2rem', color: 'var(--gold)', marginBottom: '2rem' }}>INITIALIZE ARENA</h3>
+
+          <div style={{ width: '100%', marginBottom: '2rem' }}>
+            <label className="stat-label" style={{ marginBottom: '0.5rem' }}>STAKE (STT)</label>
             <input
-              className="duel-input"
+              type="text"
               value={stakeSTT}
               onChange={e => setStakeSTT(e.target.value)}
-              type="text"
-              placeholder="0.001"
+              className="numeric"
+              style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--cyan)', color: 'var(--cyan)', fontSize: '2rem', width: '100%', outline: 'none', padding: '0.5rem 0' }}
             />
-            <span style={{ fontSize: '0.7rem', color: 'rgba(200,200,232,0.35)', marginTop: '0.3rem', display: 'block' }}>
-              ≈ {(() => { try { return parseEther(stakeSTT || '0').toString(); } catch { return '—'; } })()} wei
-            </span>
           </div>
 
-          {/* ── OPEN CHALLENGE (primary) ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {!openChallengeId ? (
-              <>
-                <button
-                  className="open-challenge-btn"
-                  onClick={handleOpenChallenge}
-                  disabled={openChallenging}
-                >
-                  {openChallenging ? '⏳  CREATING CHALLENGE...' : '⚡  OPEN CHALLENGE'}
-                </button>
-                <p style={{ fontSize: '0.72rem', color: 'rgba(200,200,232,0.4)', textAlign: 'center' }}>
-                  Creates a duel anyone can join — share the link with your opponent
-                </p>
-              </>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div className="waiting-indicator">
-                  <div className="waiting-spinner" />
-                  WAITING FOR OPPONENT...
-                </div>
-                <div className="invite-link-box">
-                  <span className="invite-link-text">{BASE_URL}/duel?join={openChallengeId}</span>
-                  <button
-                    className={`copy-btn ${linkCopied ? 'copy-btn--copied' : ''}`}
-                    onClick={handleCopyLink}
-                  >
-                    {linkCopied ? '✓ COPIED' : 'COPY'}
-                  </button>
-                </div>
-                <button
-                  className="btn-primary"
-                  style={{ width: '100%' }}
-                  onClick={handleEnterOpenDuel}
-                >
-                  ENTER ARENA (WAIT INSIDE)
-                </button>
-              </div>
-            )}
-          </div>
-
-          <hr style={{ borderColor: 'rgba(139,43,226,0.3)', margin: '0' }} />
-
-          {/* ── JOIN VIA ID / LINK ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <label style={{ fontSize: '0.8rem', letterSpacing: '2px', color: 'rgba(200,200,232,0.6)' }}>
-              JOIN A DUEL
-            </label>
-            {joinInfo && joinId && (
-              <div style={{ padding: '0.6rem 0.8rem', background: 'rgba(0,255,136,0.05)', border: '1px solid rgba(0,255,136,0.3)', fontSize: '0.8rem', color: 'var(--green)' }}>
-                ⚡ You've been invited to Duel #{joinId}. Stake: {stakeSTT} STT
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <input
-                className="duel-input duel-input--purple"
-                value={joinId}
-                onChange={e => setJoinId(e.target.value)}
-                placeholder="Duel ID"
-                style={{ flex: 1 }}
-              />
-              <button
-                className="btn-primary"
-                onClick={handleJoin}
-                disabled={joining || !joinId}
-                style={{ whiteSpace: 'nowrap', opacity: joining || !joinId ? 0.5 : 1 }}
-              >
-                {joining ? '...' : 'JOIN COMBAT'}
-              </button>
-            </div>
-          </div>
-
-          <hr style={{ borderColor: 'rgba(139,43,226,0.3)', margin: '0' }} />
-
-          {/* ── DIRECT CHALLENGE (collapsible) ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {!openChallengeId ? (
             <button
-              className="collapsible-header"
-              onClick={() => setShowDirect(d => !d)}
+              className="btn-precision pulse-breathing"
+              style={{ width: '100%', padding: '1.2rem', marginBottom: '1rem' }}
+              onClick={handleOpenChallenge}
+              disabled={openChallenging}
             >
-              <span>{showDirect ? '▼' : '▶'}</span>
-              DIRECT CHALLENGE (ENTER ADDRESS)
+              {openChallenging ? 'SYNCHRONIZING...' : 'ESTABLISH OPEN STAKE'}
             </button>
-            {showDirect && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <input
-                  className="duel-input"
-                  value={opponent}
-                  onChange={e => setOpponent(e.target.value)}
-                  placeholder="0x opponent address"
-                />
-                <button
-                  className="btn-primary"
-                  style={{ width: '100%' }}
-                  onClick={handleDirectChallenge}
-                  disabled={directChallenging || !opponent}
-                >
-                  {directChallenging ? 'SENDING...' : 'CHALLENGE'}
-                </button>
+          ) : (
+            <div style={{ width: '100%' }}>
+              <div className="stat-box" style={{ borderColor: 'var(--gold)', marginBottom: '1rem' }}>
+                <span className="stat-label">INVITATION LINK</span>
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                  <input readOnly value={`${BASE_URL}/duel?join=${openChallengeId}`} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'rgba(255,255,255,0.4)', padding: '0.5rem', flex: 1, fontSize: '0.7rem' }} />
+                  <button className="btn-precision" style={{ padding: '0.5rem 1rem' }} onClick={handleCopyLink}>{linkCopied ? 'COPIED' : 'COPY'}</button>
+                </div>
               </div>
-            )}
-          </div>
+              <button className="btn-precision" style={{ width: '100%' }} onClick={() => setActiveDuelId(openChallengeId)}>ENTER STANDBY</button>
+            </div>
+          )}
 
+          <p style={{ fontSize: '0.6rem', opacity: 0.4, letterSpacing: '2px', textTransform: 'uppercase', marginTop: '1rem' }}>
+            Anyone with the link can join this duel.
+          </p>
         </div>
 
-        {/* Practice mode link */}
-        <p style={{ marginTop: '1.5rem', fontSize: '0.75rem', color: 'rgba(200,200,232,0.35)', letterSpacing: '2px' }}>
-          No opponent?{' '}
-          <Link to="/practice" style={{ color: 'var(--cyan)', textDecoration: 'none' }}>
-            TRAIN IN PRACTICE MODE →
-          </Link>
-        </p>
+        <div className="flex-center column" style={{ alignItems: 'flex-start' }}>
+          <h3 className="title-display" style={{ fontSize: '1rem', marginBottom: '2rem' }}>JOIN PRE-ESTABLISHED</h3>
+
+          <div style={{ width: '100%', marginBottom: '2rem' }}>
+            <label className="stat-label" style={{ marginBottom: '0.5rem' }}>SESSION_ID</label>
+            <input
+              type="text"
+              value={joinId}
+              onChange={e => setJoinId(e.target.value)}
+              placeholder="0x00...000"
+              className="numeric"
+              style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--cyan)', color: 'rgba(255,255,255,0.4)', fontSize: '1.2rem', width: '100%', outline: 'none', padding: '0.5rem 0' }}
+            />
+          </div>
+
+          <button
+            className="btn-precision"
+            style={{ width: '100%', padding: '1rem' }}
+            onClick={handleJoin}
+            disabled={joining || !joinId}
+          >
+            {joining ? 'LOCKING...' : 'JOIN COMBAT'}
+          </button>
+
+          <div style={{ marginTop: 'auto', paddingTop: '2rem' }}>
+            <h4 className="title-display" style={{ fontSize: '0.7rem', marginBottom: '1rem' }}>DIRECT LINK</h4>
+            <div
+              className="btn-precision"
+              style={{ fontSize: '0.6rem', padding: '0.8rem', opacity: showDirect ? 1 : 0.5, cursor: 'pointer' }}
+              onClick={() => setShowDirect(!showDirect)}
+            >
+              {showDirect ? 'HIDE_INPUT' : 'ENTER ADDRESS'}
+            </div>
+            {showDirect && (
+              <div style={{ marginTop: '1rem', width: '100%' }}>
+                <input
+                  type="text"
+                  value={opponent}
+                  onChange={e => setOpponent(e.target.value)}
+                  placeholder="0x..."
+                  className="numeric"
+                  style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'var(--cyan)', padding: '0.8rem', width: '100%', fontSize: '0.8rem', outline: 'none' }}
+                />
+                <button className="btn-precision" style={{ width: '100%', marginTop: '0.5rem' }} onClick={handleDirectChallenge}>CHALLENGE</button>
+              </div>
+            )}
+          </div>
+        </div>
+
       </div>
 
-      {/* Right — match feed */}
-      <div style={{ flex: '0 0 280px', borderLeft: '1px solid var(--purple)', padding: '1.5rem', overflow: 'auto' }}>
-        <h3 style={{ color: 'var(--cyan)', marginBottom: '1rem', fontSize: '0.85rem', letterSpacing: '3px' }}>NEURAL_FEED</h3>
-        <MatchFeed />
+      <div style={{ marginTop: '3rem', opacity: 0.5 }}>
+        <p className="stat-label">PRE-STAKE IS NON-REFUNDABLE UPON COMMENCEMENT.</p>
       </div>
+
     </div>
   );
 }

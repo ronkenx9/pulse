@@ -15,10 +15,7 @@ const PULSE_GAME_ADDRESS = '0x38D37af6807D4629F2956e4c4DCe385719Ab25ee';
 const RPC_URL = 'https://api.infra.testnet.somnia.network';
 const WSS_URL = 'wss://api.infra.testnet.somnia.network/ws';
 
-// Reaction delay ranges per difficulty (ms). Set BOT_DIFFICULTY in .env.
-// ROOKIE:  600–900ms  (most humans ~250ms, so rookie is beatable by anyone)
-// SOLDIER: 300–500ms  (competitive — slightly above average human)
-// LEGEND:  100–200ms  (sub-200ms — extremely hard to beat)
+// Reaction delay ranges per difficulty (ms).
 const DIFFICULTY_RANGES: Record<string, [number, number]> = {
   ROOKIE: [600, 900],
   SOLDIER: [300, 500],
@@ -37,11 +34,11 @@ const somniaTestnet = {
   nativeCurrency: { name: 'STT', symbol: 'STT', decimals: 18 },
   rpcUrls: {
     default: { http: [RPC_URL], webSocket: [WSS_URL] },
-    public:  { http: [RPC_URL], webSocket: [WSS_URL] },
+    public: { http: [RPC_URL], webSocket: [WSS_URL] },
   },
 };
 
-// ── ABI (minimal — only what the bot calls/reads) ────────────────────────────
+// ── ABI ──────────────────────────────────────────────────────────────────────
 
 const pulseGameAbi = [
   {
@@ -62,17 +59,17 @@ const pulseGameAbi = [
   {
     anonymous: false,
     inputs: [
-      { indexed: true,  name: 'duelId',  type: 'uint256' },
+      { indexed: true, name: 'duelId', type: 'uint256' },
       { indexed: false, name: 'player1', type: 'address' },
       { indexed: false, name: 'player2', type: 'address' },
-      { indexed: false, name: 'stake',   type: 'uint256' },
+      { indexed: false, name: 'stake', type: 'uint256' },
     ],
     name: 'DuelCreated', type: 'event',
   },
   {
     anonymous: false,
     inputs: [
-      { indexed: true,  name: 'duelId',    type: 'uint256' },
+      { indexed: true, name: 'duelId', type: 'uint256' },
       { indexed: false, name: 'timestamp', type: 'uint256' },
     ],
     name: 'SignalFired', type: 'event',
@@ -81,9 +78,6 @@ const pulseGameAbi = [
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-// Only react to SignalFired events for duels we actually joined.
-// Without this guard the bot would fire submitReaction() on every duel on the
-// contract — including human-vs-human matches — wasting gas and causing reverts.
 const activeDuelIds = new Set<bigint>();
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -101,35 +95,39 @@ async function startBot() {
   });
   const sdk = new SDK({ public: client as any, wallet: wallet as any });
 
-  console.log(`🤖 Bot address  : ${account.address}`);
-  console.log(`⚔️  Difficulty   : ${BOT_DIFFICULTY} (reaction ${DELAY_MIN}–${DELAY_MAX} ms)`);
-  console.log(`🎮 Game contract : ${PULSE_GAME_ADDRESS}\n`);
+  console.log(`\x1b[36m[SYSTEM] Bot Initializing...\x1b[0m`);
+  console.log(`🤖 Address  : ${account.address}`);
+  console.log(`⚔️  Level    : ${BOT_DIFFICULTY} (${DELAY_MIN}–${DELAY_MAX}ms)`);
+  console.log(`🎮 Contract : ${PULSE_GAME_ADDRESS}\n`);
+
+  // ── Periodic Heartbeat ───────────────────────────────────────────────────
+  const heartbeatInterval = setInterval(() => {
+    const timestamp = new Date().toISOString();
+    process.stdout.write(`\r\x1b[32m[HEARTBEAT] ${timestamp} :: ACTIVE_DUELS: ${activeDuelIds.size} :: LISTENING...\x1b[0m`);
+  }, 30_000);
 
   // ── Subscription 1: DuelCreated ──────────────────────────────────────────
-  // When a player creates a duel with the bot's address as player2, join + arm.
-  await sdk.subscribe({
+  const subDuelCreated = await sdk.subscribe({
     eventContractSources: [PULSE_GAME_ADDRESS],
     topicOverrides: [
       keccak256(Buffer.from('DuelCreated(uint256,address,address,uint256)')) as `0x${string}`,
     ],
     onData: async (data: any) => {
-      const log = data.result;
       try {
+        const log = data.result;
         const decoded = decodeEventLog({
           abi: pulseGameAbi,
           data: log.data,
           topics: log.topics,
         }) as any;
 
-        // Ignore duels where we are not player2
         if (decoded.args.player2.toLowerCase() !== account.address.toLowerCase()) return;
 
         const duelId: bigint = decoded.args.duelId;
-        const stake: bigint  = decoded.args.stake;
-        console.log(`[DUEL #${duelId}] Challenged  — stake: ${stake} wei`);
+        const stake: bigint = decoded.args.stake;
+        console.log(`\n[CHALLENGE] Duel #${duelId} detected. Stake: ${stake} wei`);
 
-        // ── Step 1: join ────────────────────────────────────────────────────
-        console.log(`[DUEL #${duelId}] Joining...`);
+        // Join
         const joinHash = await wallet.writeContract({
           address: PULSE_GAME_ADDRESS as `0x${string}`,
           abi: pulseGameAbi,
@@ -140,12 +138,9 @@ async function startBot() {
           chain: somniaTestnet as any,
         });
         await client.waitForTransactionReceipt({ hash: joinHash });
-        console.log(`[DUEL #${duelId}] Joined ✓`);
+        console.log(`[DUEL #${duelId}] Join confirmed.`);
 
-        // ── Step 2: arm signal ──────────────────────────────────────────────
-        // Both players must arm before the signal can fire.
-        // Skipping this leaves the duel permanently stuck in JOINED state.
-        console.log(`[DUEL #${duelId}] Arming signal...`);
+        // Arm
         const armHash = await wallet.writeContract({
           address: PULSE_GAME_ADDRESS as `0x${string}`,
           abi: pulseGameAbi,
@@ -155,27 +150,29 @@ async function startBot() {
           chain: somniaTestnet as any,
         });
         await client.waitForTransactionReceipt({ hash: armHash });
-        console.log(`[DUEL #${duelId}] Armed ✓ — waiting for opponent to arm + signal...`);
+        console.log(`[DUEL #${duelId}] Armed and ready.`);
 
         activeDuelIds.add(duelId);
       } catch (e) {
-        console.error(`[DUEL] Error handling DuelCreated:`, e);
+        console.error(`\n[ERROR] DuelCreated handler failure:`, e);
       }
     },
-    onError: (err) => console.error('DuelCreated subscription error:', err),
+    onError: (err) => {
+      console.error('\n[ERROR] DuelCreated subscription interrupted:', err);
+      throw err; // Trigger recovery
+    },
     ethCalls: [],
   });
 
   // ── Subscription 2: SignalFired ──────────────────────────────────────────
-  // React with a difficulty-calibrated delay — but ONLY for our own duels.
-  await sdk.subscribe({
+  const subSignalFired = await sdk.subscribe({
     eventContractSources: [PULSE_GAME_ADDRESS],
     topicOverrides: [
       keccak256(Buffer.from('SignalFired(uint256,uint256)')) as `0x${string}`,
     ],
     onData: async (data: any) => {
-      const log = data.result;
       try {
+        const log = data.result;
         const decoded = decodeEventLog({
           abi: pulseGameAbi,
           data: log.data,
@@ -184,16 +181,11 @@ async function startBot() {
 
         const duelId: bigint = decoded.args.duelId;
 
-        // Not our duel — skip without spending gas
-        if (!activeDuelIds.has(duelId)) {
-          console.log(`[SIGNAL] Duel #${duelId} — not my duel, ignoring`);
-          return;
-        }
+        if (!activeDuelIds.has(duelId)) return;
 
         const delay = Math.round(DELAY_MIN + Math.random() * (DELAY_MAX - DELAY_MIN));
-        console.log(`[SIGNAL] Duel #${duelId} — reacting in ${delay} ms (${BOT_DIFFICULTY})`);
+        console.log(`\n[SIGNAL] Duel #${duelId} :: CALIBRATING_REACTION :: ${delay}ms`);
 
-        // Remove immediately so a duplicate event doesn't cause a double-react
         activeDuelIds.delete(duelId);
 
         setTimeout(async () => {
@@ -206,23 +198,29 @@ async function startBot() {
               gasPrice: parseGwei('50'),
               chain: somniaTestnet as any,
             });
-            console.log(`[DUEL #${duelId}] Reacted ✓  TX: ${hash}`);
+            console.log(`[DUEL #${duelId}] Reaction submitted. TX: ${hash}`);
           } catch (e) {
-            console.error(`[DUEL #${duelId}] submitReaction failed:`, e);
+            console.error(`\n[ERROR] Duel #${duelId} reaction submission failed:`, e);
           }
         }, delay);
       } catch (e) {
-        console.error(`[SIGNAL] Error handling SignalFired:`, e);
+        console.error(`\n[ERROR] SignalFired handler failure:`, e);
       }
     },
-    onError: (err) => console.error('SignalFired subscription error:', err),
+    onError: (err) => {
+      console.error('\n[ERROR] SignalFired subscription interrupted:', err);
+      throw err; // Trigger recovery
+    },
     ethCalls: [],
   });
 
-  console.log('Bot is live — listening for challenges...\n');
+  console.log('\x1b[32m[SYSTEM] Bot established. Monitoring neural events...\x1b[0m\n');
 
-  // Keep the process alive
-  setInterval(() => { }, 60_000);
+  // Return unsubscribe functions for cleanup
+  return () => {
+    clearInterval(heartbeatInterval);
+    // subDuelCreated and subSignalFired cleanup if SDK supports it
+  };
 }
 
 // ── Crash recovery with exponential backoff ───────────────────────────────────
@@ -231,26 +229,27 @@ const MAX_RESTART_DELAY_MS = 60_000;
 
 async function runWithRecovery() {
   while (true) {
+    let cleanup: (() => void) | undefined;
     try {
-      await startBot();
-      // startBot() only exits if the keep-alive interval is cleared (shouldn't happen)
-      restartAttempts = 0;
+      cleanup = await startBot();
+      // startBot successfully setup listeners. We wait here for a crash.
+      await new Promise(() => { }); // Wait forever
     } catch (err) {
+      if (cleanup) cleanup();
       restartAttempts++;
       const delay = Math.min(1000 * 2 ** restartAttempts, MAX_RESTART_DELAY_MS);
-      console.error(`\n[BOT] Crashed (attempt ${restartAttempts}). Restarting in ${delay}ms...`, err);
+      console.error(`\n\x1b[31m[CRITICAL] Bot Failure (Attempt ${restartAttempts}). Reconnecting in ${delay}ms...\n\x1b[0m`, err);
       await new Promise(r => setTimeout(r, delay));
     }
   }
 }
 
 process.on('uncaughtException', (err) => {
-  console.error('[BOT] uncaughtException:', err);
-  // Allow the loop to handle restart
+  console.error('\n[CRITICAL] uncaughtException:', err);
 });
 
 process.on('unhandledRejection', (reason) => {
-  console.error('[BOT] unhandledRejection:', reason);
+  console.error('\n[CRITICAL] unhandledRejection:', reason);
 });
 
 runWithRecovery();

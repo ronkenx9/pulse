@@ -1,22 +1,18 @@
 import { useEffect, useState, useCallback } from 'react';
 import { usePulseGame } from '../hooks/usePulseGame';
 import { useReactivity } from '../hooks/useReactivity';
-import { playHum, playSnap, playBassDrop, audioCtx, ensureAudio } from '../lib/audio';
+import { playHum, playSnap, playBassDrop, ensureAudio } from '../lib/audio';
 
-// UI State Machine matching PRD: WAITING -> FIRE -> REACTED -> ASYNC_RESOLVE -> RESULT
 type UIState = 'WAITING' | 'FIRE' | 'REACTED' | 'ASYNC_RESOLVE' | 'RESULT';
 
 export function SignalZone({ duelId }: { duelId: string }) {
     const { submitReaction } = usePulseGame();
     const { isArmed, gameResult, isFalseStart } = useReactivity(duelId);
 
-    // Local UI State
     const [humHandle, setHumHandle] = useState<{ stop: () => void } | null>(null);
     const [uiState, setUIState] = useState<UIState>('WAITING');
     const [hasReacted, setHasReacted] = useState(false);
-    const [showScanline, setShowScanline] = useState(false);
 
-    // Determine UI state based on reactivity data
     useEffect(() => {
         if (gameResult) {
             setUIState('RESULT');
@@ -31,7 +27,6 @@ export function SignalZone({ duelId }: { duelId: string }) {
         }
     }, [isArmed, gameResult, isFalseStart, hasReacted]);
 
-    // Initial hum when WAITING
     useEffect(() => {
         if (uiState === 'WAITING') {
             const handle = playHum();
@@ -45,7 +40,6 @@ export function SignalZone({ duelId }: { duelId: string }) {
         };
     }, [uiState]);
 
-    // Handle Fire state
     useEffect(() => {
         if (uiState === 'FIRE') {
             if (humHandle) {
@@ -53,121 +47,110 @@ export function SignalZone({ duelId }: { duelId: string }) {
                 setHumHandle(null);
             }
             playSnap();
-            setShowScanline(true);
-            setTimeout(() => setShowScanline(false), 500);
-
-            document.body.classList.add('signal-active');
-            document.body.classList.add('shake');
-            setTimeout(() => {
-                document.body.classList.remove('signal-active');
-                document.body.classList.remove('shake');
-            }, 500);
         }
-    }, [uiState, humHandle]);
+    }, [uiState]);
 
-    // Handle Resolved state
     useEffect(() => {
         if (uiState === 'RESULT') {
-            document.body.classList.remove('signal-fire');
             playBassDrop();
         }
     }, [uiState]);
 
     const handleReact = useCallback(() => {
-        if (audioCtx.state === 'suspended') audioCtx.resume();
+        ensureAudio();
         submitReaction(duelId);
         setHasReacted(true);
     }, [duelId, submitReaction]);
 
-    // RESULT state
     if (uiState === 'RESULT') {
         return (
-            <div className="panel" style={{ textAlign: 'center', borderColor: 'var(--gold)', minHeight: '300px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <h1 style={{ color: isFalseStart ? 'var(--red)' : 'var(--gold)', fontSize: '3.5rem', textShadow: '0 0 20px rgba(255,215,0,0.5)' }}>
-                    {isFalseStart ? "FALSE START" : "DUEL RESOLVED"}
+            <div className="flex-center column" style={{ textAlign: 'center' }}>
+                <h1 className="title-display pulse-breathing" style={{ color: isFalseStart ? 'var(--red)' : 'var(--gold)', fontSize: '3.5rem' }}>
+                    {isFalseStart ? "SYNC_LOSS" : "DUEL_END"}
                 </h1>
                 <div style={{ marginTop: '2rem' }}>
-                    <p className="numeric" style={{ fontSize: '1.5rem', letterSpacing: '2px', opacity: 0.8 }}>WINNER</p>
-                    <p style={{ color: 'var(--green)', fontFamily: 'var(--font-display)', fontSize: '1.2rem', marginTop: '0.5rem' }}>
-                        {gameResult?.winner || 'Unknown'}
+                    <span className="stat-label">VICTOR_ID</span>
+                    <p style={{ color: 'var(--green)', fontSize: '1.2rem', marginTop: '0.5rem' }}>
+                        {gameResult?.winner ? `${gameResult.winner.slice(0, 10)}...` : 'N/A'}
                     </p>
                 </div>
                 {!isFalseStart && gameResult && (
-                    <div style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(0,255,255,0.05)', borderRadius: '8px' }}>
-                        <p style={{ fontSize: '0.8rem', opacity: 0.6 }}>CLIENT REACTION TIME</p>
-                        <p className="numeric" style={{ fontSize: '4rem', color: 'var(--cyan)', textShadow: '0 0 15px var(--cyan)' }}>
+                    <div className="stat-box" style={{ marginTop: '2rem', borderColor: 'var(--cyan)' }}>
+                        <span className="stat-label">NEURAL_RESPONSE_TIME</span>
+                        <p className="numeric" style={{ fontSize: '4rem', color: 'var(--cyan)' }}>
                             {Math.round(gameResult.clientReactionMs)}<span style={{ fontSize: '1.5rem', marginLeft: '5px' }}>ms</span>
                         </p>
                     </div>
                 )}
-                <div style={{ marginTop: '2rem' }}>
-                    <button className="btn-primary" onClick={() => window.location.href = '/'}>
-                        BACK TO LOBBY
+                <div style={{ marginTop: '3rem' }}>
+                    <button className="btn-precision" onClick={() => window.location.href = '/lobby'}>
+                        DISCONNECT_ARENA
                     </button>
                 </div>
             </div>
         );
     }
 
-    // ASYNC_RESOLVE state
     if (uiState === 'ASYNC_RESOLVE') {
         return (
-            <div style={{ textAlign: 'center', marginTop: '10vh' }}>
-                <div style={{
+            <div className="flex-center column">
+                <div className="pulse-tensed" style={{
                     width: '140px', height: '140px',
                     borderRadius: '50%',
                     border: '4px solid var(--gold)',
-                    margin: '0 auto',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    animation: 'radioactivePulse 0.5s infinite alternate',
                     boxShadow: '0 0 30px rgba(255,215,0,0.3)'
                 }}>
-                    <p style={{ color: 'var(--gold)', fontWeight: 'bold' }}>RESOLVING</p>
+                    <div className="sonar-ping">
+                        <div className="sonar-ring" style={{ borderColor: 'var(--gold)' }} />
+                    </div>
+                    <p className="title-display" style={{ color: 'var(--gold)', fontSize: '0.7rem' }}>SYNCING</p>
                 </div>
-                <h2 style={{ marginTop: '2.5rem', color: 'var(--cyan)', letterSpacing: '4px' }}>WAITING FOR BLOCKS...</h2>
-                <p style={{ marginTop: '1rem', color: 'rgba(200, 200, 232, 0.7)', maxWidth: '400px', margin: '1rem auto' }}>
-                    Your reaction is on-chain. Somnia validators are calculating the precise winner...
+                <h2 className="title-display" style={{ marginTop: '2.5rem', color: 'var(--cyan)', fontSize: '1rem' }}>BLOCK_VALIDATION...</h2>
+                <p style={{ marginTop: '1rem', opacity: 0.6, fontSize: '0.7rem', maxWidth: '300px', textAlign: 'center', letterSpacing: '2px' }}>
+                    COMMITTING BIOMETRIC DATA TO SOMNIA LEDGER.
                 </p>
             </div>
         );
     }
 
-    // FIRE state
     if (uiState === 'FIRE') {
         return (
-            <div style={{ textAlign: 'center', marginTop: '10vh', position: 'relative' }}>
-                {showScanline && <div className="scanline-sweep" />}
-                <h1 style={{ fontSize: '5rem', color: 'black', marginBottom: '2rem', fontWeight: '900', WebkitTextStroke: '1px var(--green)' }}>FIRE!</h1>
-                <button className="react-btn" onClick={handleReact}>
-                    REACТ
+            <div className="flex-center column pulse-tensed">
+                <h1 className="title-display" style={{ fontSize: '6rem', color: 'var(--green)', marginBottom: '3rem' }}>FIRE</h1>
+                <button
+                    className="btn-precision"
+                    style={{ width: '250px', height: '250px', borderRadius: '50%', fontSize: '2rem', borderColor: 'var(--green)', color: 'var(--green)' }}
+                    onClick={handleReact}
+                >
+                    REACT
                 </button>
             </div>
         );
     }
 
-    // WAITING state
     return (
-        <div style={{ textAlign: 'center', marginTop: '5vh' }}>
+        <div className="flex-center column pulse-breathing">
             <div style={{
                 width: '180px', height: '180px',
                 borderRadius: '50%',
-                border: '4px solid var(--purple)',
-                margin: '0 auto',
-                animation: 'radioactivePulse 2s infinite alternate',
+                border: '4px dotted var(--purple)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'radial-gradient(circle, rgba(139, 43, 226, 0.1) 0%, transparent 70%)'
             }}>
-                <p style={{ fontSize: '1.2rem', letterSpacing: '3px' }}>WAITING</p>
+                <div className="sonar-ping">
+                    <div className="sonar-ring" style={{ borderColor: 'var(--purple)' }} />
+                </div>
+                <p className="title-display" style={{ fontSize: '0.8rem', color: 'var(--purple)' }}>STANDBY</p>
             </div>
-            <h2 style={{ marginTop: '3rem', animation: 'numFlicker 2s infinite', color: 'var(--purple)' }}>ESTABLISHING SECURE CONNECTION...</h2>
-            <div style={{ marginTop: '4rem', opacity: 0.6 }}>
-                <p style={{ fontSize: '0.8rem', color: 'var(--red)' }}>[ WARNING: EARLY REACTION DISQUALIFIES ]</p>
+            <h2 className="title-display" style={{ marginTop: '3rem', fontSize: '0.8rem', color: 'var(--purple)' }}>STABILIZING_NEURAL_LINK...</h2>
+            <div style={{ marginTop: '4rem', opacity: 0.4 }}>
+                <p style={{ fontSize: '0.6rem', color: 'var(--red)', letterSpacing: '3px' }}>[ PREMATURE REACTION DISQUALIFIES ]</p>
                 <button
-                    className="btn-primary"
-                    style={{ borderColor: 'var(--red)', color: 'var(--red)', marginTop: '1rem', fontSize: '0.7rem' }}
+                    className="btn-precision"
+                    style={{ borderColor: 'var(--red)', color: 'var(--red)', marginTop: '1.5rem', fontSize: '0.6rem' }}
                     onClick={() => { ensureAudio(); handleReact(); }}
                 >
-                    TEST FALSE START
+                    TEST_FALSE_START
                 </button>
             </div>
         </div>

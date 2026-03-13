@@ -2,22 +2,23 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Web3Provider } from './context/Web3Provider';
 import { WalletProvider } from './context/WalletContext';
 import { Home } from './pages/Home';
+import { Lobby } from './pages/Lobby';
 import { Duel } from './pages/Duel';
 import { Leaderboard } from './pages/Leaderboard';
 import { Practice } from './pages/Practice';
-import { HeartbeatBar } from './components/HeartbeatBar';
+import { HeartbeatLine } from './components/HeartbeatLine';
 
 function App() {
   return (
     <Web3Provider>
       <WalletProvider>
-        <div className="crt-overlay"></div>
-        <div className="crt-noise"></div>
+        <div className="ecg-grid"></div>
+        <HeartbeatLine />
 
         <BrowserRouter>
-          <HeartbeatBar />
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/lobby" element={<Lobby />} />
             <Route path="/duel" element={<Duel />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/practice" element={<Practice />} />

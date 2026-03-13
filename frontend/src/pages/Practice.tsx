@@ -1,86 +1,67 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
-import { playSnap, playHum, playBassDrop, ensureAudio } from '../lib/audio';
+import { playSnap, playHum, playBassDrop, ensureAudio, startAmbient } from '../lib/audio';
 
 type Difficulty = 'ROOKIE' | 'SOLDIER' | 'LEGEND';
 type Stage = 'IDLE' | 'COUNTDOWN' | 'WAIT' | 'FIRE' | 'RESULT_HIT' | 'RESULT_EARLY';
 
-const DIFFICULTIES: Record<Difficulty, {
-  label: string;
-  minMs: number;
-  maxMs: number;
-  target: number;
-  range: string;
-  // Bot reaction range for on-chain mode (info only — set by bot env var)
-  botMs: string;
-}> = {
-  ROOKIE:  { label: 'ROOKIE',  minMs: 3000, maxMs: 5000, target: 500, range: '3 – 5s',     botMs: '600 – 900ms'  },
-  SOLDIER: { label: 'SOLDIER', minMs: 1500, maxMs: 3000, target: 300, range: '1.5 – 3s',   botMs: '300 – 500ms'  },
-  LEGEND:  { label: 'LEGEND',  minMs: 800,  maxMs: 1800, target: 180, range: '0.8 – 1.8s', botMs: '100 – 200ms'  },
+const DIFFICULTIES: Record<Difficulty, { label: string; minMs: number; maxMs: number; target: number; range: string }> = {
+  ROOKIE: { label: 'ROOKIE', minMs: 3000, maxMs: 5000, target: 500, range: '3 – 5s' },
+  SOLDIER: { label: 'SOLDIER', minMs: 1500, maxMs: 3000, target: 300, range: '1.5 – 3s' },
+  LEGEND: { label: 'LEGEND', minMs: 800, maxMs: 1800, target: 180, range: '0.8 – 1.8s' },
 };
 
 function grade(ms: number, target: number): { label: string; color: string } {
   if (ms < target * 0.6) return { label: 'LEGENDARY REFLEX', color: 'var(--gold)' };
-  if (ms < target)       return { label: 'SHARP — WELL DONE', color: 'var(--green)' };
+  if (ms < target) return { label: 'SHARP — WELL DONE', color: 'var(--green)' };
   if (ms < target * 1.4) return { label: 'DECENT — KEEP TRAINING', color: 'var(--cyan)' };
   return { label: 'TOO SLOW — PRACTICE MORE', color: 'var(--red)' };
 }
 
 const HISTORY_KEY = 'pulse_practice_history';
-const BEST_KEY    = 'pulse_practice_best';
-
-function loadHistory(): number[] {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; }
-}
-function saveHistory(h: number[]) {
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(-10)));
-}
-
-// Bot wallet address — keep in sync with contracts/scripts/bot.ts
+const BEST_KEY = 'pulse_practice_best';
 const BOT_ADDRESS = '0x4EE45DA3868ba337AAD8B2803f325a2900EDb2a5';
 
 export function Practice() {
   const { account } = useWallet();
-  const navigate = useNavigate();
-
-  const [mode, setMode]             = useState<'OFFLINE' | 'ON-CHAIN'>('OFFLINE');
+  const [mode, setMode] = useState<'OFFLINE' | 'ON-CHAIN'>('OFFLINE');
   const [difficulty, setDifficulty] = useState<Difficulty>('SOLDIER');
-  const [stage, setStage]           = useState<Stage>('IDLE');
-  const [countdown, setCountdown]   = useState(3);
+  const [stage, setStage] = useState<Stage>('IDLE');
+  const [countdown, setCountdown] = useState(3);
   const [reactionMs, setReactionMs] = useState<number | null>(null);
-  const [history, setHistory]       = useState<number[]>(loadHistory);
+  const [history, setHistory] = useState<number[]>(() => {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; }
+  });
   const [personalBest, setPersonalBest] = useState<number | null>(() => {
     const v = localStorage.getItem(BEST_KEY);
     return v ? Number(v) : null;
   });
 
-  // ON-CHAIN mode stake input — replaces the browser prompt()
-  const [botStake, setBotStake] = useState('0.001');
+  const startTimeRef = useRef<number>(0);
+  const signalTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const humHandleRef = useRef<{ stop: () => void } | null>(null);
 
-  const startTimeRef    = useRef<number>(0);
-  const signalTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const countdownTimer  = useRef<ReturnType<typeof setInterval> | null>(null);
-  const humHandleRef    = useRef<{ stop: () => void } | null>(null);
-  const [showScanline, setShowScanline] = useState(false);
-
-  // Clear timers on unmount
   useEffect(() => {
+    startAmbient('ARENA');
     return () => {
-      if (signalTimer.current)    clearTimeout(signalTimer.current);
+      if (signalTimer.current) clearTimeout(signalTimer.current);
       if (countdownTimer.current) clearInterval(countdownTimer.current);
+      if (humHandleRef.current) humHandleRef.current.stop();
     };
   }, []);
 
-  // Navigate to Duel page with bot pre-filled — no prompt(), no page reload
-  const startOnChain = () => {
-    if (!account) { alert('Connect wallet first'); return; }
-    navigate(`/duel?opponent=${BOT_ADDRESS}&stake=${botStake}`);
+  const startOnChain = async () => {
+    if (!account) return alert("Connect wallet first");
+    const stake = prompt("Stake in STMET?", "0.01");
+    if (!stake) return;
+    window.location.href = `/duel?opponent=${BOT_ADDRESS}&stake=${stake}`;
   };
 
   const startRound = () => {
     ensureAudio();
-    if (signalTimer.current)    clearTimeout(signalTimer.current);
+    if (signalTimer.current) clearTimeout(signalTimer.current);
     if (countdownTimer.current) clearInterval(countdownTimer.current);
 
     setReactionMs(null);
@@ -108,22 +89,13 @@ export function Practice() {
       setStage('FIRE');
       startTimeRef.current = performance.now();
       playSnap();
-
-      setShowScanline(true);
-      setTimeout(() => setShowScanline(false), 500);
-
-      document.body.classList.add('signal-active');
-      document.body.classList.add('shake');
-      setTimeout(() => {
-        document.body.classList.remove('signal-active');
-        document.body.classList.remove('shake');
-      }, 500);
     }, delay);
   };
 
   const handleReact = () => {
     if (stage === 'WAIT') {
       if (signalTimer.current) clearTimeout(signalTimer.current);
+      if (humHandleRef.current) humHandleRef.current.stop();
       playBassDrop();
       setStage('RESULT_EARLY');
       return;
@@ -136,7 +108,7 @@ export function Practice() {
 
       const newHistory = [...history, ms].slice(-10);
       setHistory(newHistory);
-      saveHistory(newHistory);
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
 
       if (personalBest === null || ms < personalBest) {
         setPersonalBest(ms);
@@ -145,255 +117,137 @@ export function Practice() {
     }
   };
 
-  const reset = () => {
-    setStage('IDLE');
-    setReactionMs(null);
-  };
-
-  const avg = history.length > 0
-    ? Math.round(history.reduce((a, b) => a + b, 0) / history.length)
-    : null;
+  const avg = history.length > 0 ? Math.round(history.reduce((a, b) => a + b, 0) / history.length) : null;
 
   return (
-    <div className="practice-root">
-      {/* Nav */}
-      <div style={{ position: 'absolute', top: '1.5rem', left: '1.5rem', display: 'flex', gap: '1rem' }}>
-        <Link to="/"><button className="btn-primary" style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem' }}>← HOME</button></Link>
-        {account && (
-          <Link to="/duel"><button className="btn-primary" style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem' }}>ENTER ARENA</button></Link>
-        )}
+    <div className="flex-center column" style={{ minHeight: '100vh', padding: '4rem 2rem' }}>
+
+      <div style={{ position: 'absolute', top: '2rem', left: '2rem' }}>
+        <Link to="/lobby">
+          <button className="btn-precision" style={{ fontSize: '0.6rem' }}>← LOBBY</button>
+        </Link>
       </div>
 
-      <h1 style={{ color: 'var(--cyan)', fontSize: 'clamp(2rem, 5vw, 3.5rem)', letterSpacing: '6px' }}>
-        PRACTICE MODE
-      </h1>
-      <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', letterSpacing: '2px', color: 'rgba(200,200,232,0.45)' }}>
-        {mode === 'OFFLINE'
-          ? 'TRAIN YOUR REFLEXES · NO STAKE · NO BLOCKCHAIN'
-          : 'ON-CHAIN ARENA · CHALLENGE THE BOT · REAL STT STAKE'}
-      </p>
+      <div className="pulse-breathing" style={{ textAlign: 'center', marginBottom: '3rem' }}>
+        <span className="stat-label">TRAINING_FACILITY_01</span>
+        <h1 className="title-display" style={{ fontSize: '3rem' }}>NEURAL PRACTICE</h1>
+      </div>
 
-      {/* Mode Toggle */}
-      <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '3rem' }}>
         <button
-          className={`btn-primary ${mode === 'OFFLINE' ? '' : 'btn-dim'}`}
-          onClick={() => { setMode('OFFLINE'); reset(); }}
-          style={{ fontSize: '0.7rem', padding: '0.4rem 1rem' }}
+          className="btn-precision"
+          style={{ opacity: mode === 'OFFLINE' ? 1 : 0.3, fontSize: '0.7rem' }}
+          onClick={() => setMode('OFFLINE')}
         >
-          OFFLINE (LOCAL)
+          LOCAL_SIMULATION
         </button>
         <button
-          className={`btn-primary ${mode === 'ON-CHAIN' ? '' : 'btn-dim'}`}
-          onClick={() => { setMode('ON-CHAIN'); reset(); }}
-          style={{ fontSize: '0.7rem', padding: '0.4rem 1rem', borderColor: 'var(--gold)', color: mode === 'ON-CHAIN' ? 'var(--gold)' : '' }}
+          className="btn-precision"
+          style={{ opacity: mode === 'ON-CHAIN' ? 1 : 0.3, borderColor: 'var(--gold)', color: 'var(--gold)', fontSize: '0.7rem' }}
+          onClick={() => setMode('ON-CHAIN')}
         >
-          ON-CHAIN (BOT)
+          BOT_CHALLENGE_EXT
         </button>
       </div>
 
-      {/* Difficulty selector — shown for both modes */}
-      <div className="difficulty-cards">
-        {(Object.entries(DIFFICULTIES) as [Difficulty, typeof DIFFICULTIES[Difficulty]][]).map(([key, d]) => (
-          <button
-            key={key}
-            className={`difficulty-card ${difficulty === key ? 'difficulty-card--active' : ''}`}
-            onClick={() => { setDifficulty(key); reset(); }}
-          >
-            <span className="difficulty-name">{d.label}</span>
-            {mode === 'OFFLINE' ? (
-              <>
-                <span className="difficulty-range">Signal: {d.range}</span>
-                <span className="difficulty-target">Target: &lt;{d.target}ms</span>
-              </>
-            ) : (
-              <>
-                <span className="difficulty-range">Signal: {d.range}</span>
-                <span className="difficulty-target" style={{ color: 'var(--gold)' }}>Bot reacts: {d.botMs}</span>
-              </>
-            )}
-          </button>
-        ))}
-      </div>
+      <div className="panel" style={{ width: '100%', maxWidth: '800px', display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '3rem' }}>
 
-      {/* Arena */}
-      <div className="practice-arena">
+        <div className="flex-center column" style={{ borderRight: '1px solid var(--border-dim)', paddingRight: '3rem', minHeight: '400px' }}>
 
-        {/* ── ON-CHAIN idle ── */}
-        {stage === 'IDLE' && mode === 'ON-CHAIN' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem' }}>
-            <p className="practice-status" style={{ color: 'var(--gold)' }}>ON-CHAIN CHALLENGE</p>
-            <p style={{ fontSize: '0.8rem', opacity: 0.6, maxWidth: '320px', textAlign: 'center', margin: 0 }}>
-              Creates a real duel on Somnia against the automated bot.
-              Winner takes the collective stake.
-            </p>
-
-            {/* Stake input — replaces the old browser prompt() */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', width: '240px' }}>
-              <label style={{ fontSize: '0.75rem', letterSpacing: '2px', color: 'rgba(200,200,232,0.55)' }}>
-                STAKE (STT)
-              </label>
-              <input
-                className="duel-input"
-                value={botStake}
-                onChange={e => setBotStake(e.target.value)}
-                type="text"
-                placeholder="0.001"
-              />
+          {stage === 'IDLE' && (
+            <div className="flex-center column">
+              <h2 className="title-display" style={{ fontSize: '1rem', marginBottom: '2rem', color: 'var(--green)' }}>SYSTEM_READY</h2>
+              <button className="btn-precision pulse-breathing" style={{ padding: '1.5rem 3rem' }} onClick={mode === 'OFFLINE' ? startRound : startOnChain}>
+                {mode === 'OFFLINE' ? 'START ROUND' : 'CHALLENGE BOT'}
+              </button>
             </div>
+          )}
 
-            <button
-              className="btn-primary"
-              style={{ fontSize: '1rem', padding: '1rem 3rem', letterSpacing: '4px', borderColor: 'var(--gold)', color: 'var(--gold)' }}
-              onClick={startOnChain}
-              disabled={!account}
-            >
-              {account ? 'CHALLENGE BOT' : 'CONNECT WALLET FIRST'}
-            </button>
-
-            <p style={{ fontSize: '0.7rem', color: 'rgba(200,200,232,0.3)', letterSpacing: '2px', textAlign: 'center' }}>
-              Bot address: {BOT_ADDRESS.slice(0, 8)}···{BOT_ADDRESS.slice(-6)}
-            </p>
-          </div>
-        )}
-
-        {/* ── OFFLINE idle ── */}
-        {stage === 'IDLE' && mode === 'OFFLINE' && (
-          <>
-            <p className="practice-status">READY TO TRAIN</p>
-            <button
-              className="btn-primary"
-              style={{ fontSize: '1rem', padding: '1rem 3rem', letterSpacing: '4px' }}
-              onClick={startRound}
-            >
-              START ROUND
-            </button>
-          </>
-        )}
-
-        {stage === 'COUNTDOWN' && (
-          <p className="practice-status" style={{ fontSize: '5rem', color: 'var(--cyan)', fontFamily: 'var(--font-numeric)' }}>
-            {countdown > 0 ? countdown : 'GO'}
-          </p>
-        )}
-
-        {stage === 'WAIT' && (
-          <>
-            <p className="practice-status practice-status--wait">WAIT FOR THE SIGNAL...</p>
-            <button
-              className="practice-react-btn"
-              onClick={handleReact}
-              style={{ opacity: 0.4, cursor: 'pointer' }}
-            >
-              REACT
-            </button>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.7rem', color: 'rgba(200,200,232,0.3)', letterSpacing: '2px' }}>
-              DON'T REACT YET
-            </p>
-          </>
-        )}
-
-        {stage === 'FIRE' && (
-          <div style={{ position: 'relative', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            {showScanline && <div className="scanline-sweep" />}
-            <p className="practice-status practice-status--fire">FIRE!</p>
-            <button className="practice-react-btn" onClick={handleReact}>
-              REACT
-            </button>
-          </div>
-        )}
-
-        {stage === 'RESULT_HIT' && reactionMs !== null && (
-          <div className="reaction-result">
-            <span className="reaction-ms">{reactionMs}ms</span>
-            <p className="reaction-grade" style={{ color: grade(reactionMs, DIFFICULTIES[difficulty].target).color }}>
-              {grade(reactionMs, DIFFICULTIES[difficulty].target).label}
-            </p>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'rgba(200,200,232,0.4)', marginTop: '0.5rem' }}>
-              TARGET: &lt;{DIFFICULTIES[difficulty].target}ms
-            </p>
-            <button
-              className="btn-primary"
-              style={{ marginTop: '1.5rem', fontSize: '0.9rem', padding: '0.8rem 2rem' }}
-              onClick={startRound}
-            >
-              TRY AGAIN
-            </button>
-          </div>
-        )}
-
-        {stage === 'RESULT_EARLY' && (
-          <div className="reaction-result">
-            <p style={{ fontSize: '3rem', fontFamily: 'var(--font-display)', color: 'var(--red)', letterSpacing: '2px' }}>
-              FALSE START
-            </p>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'rgba(200,200,232,0.6)', marginTop: '0.5rem' }}>
-              You reacted before the signal fired.<br />
-              In a real duel, your opponent wins the entire pot.
-            </p>
-            <button
-              className="btn-primary"
-              style={{ marginTop: '1.5rem', fontSize: '0.9rem', padding: '0.8rem 2rem', borderColor: 'var(--red)', color: 'var(--red)' }}
-              onClick={startRound}
-            >
-              TRY AGAIN
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Stats row */}
-      {history.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', gap: '3rem', fontFamily: 'var(--font-body)', fontSize: '0.8rem' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ color: 'rgba(200,200,232,0.4)', letterSpacing: '2px', marginBottom: '0.25rem' }}>BEST</div>
-              <div style={{ fontFamily: 'var(--font-numeric)', fontSize: '2rem', color: 'var(--gold)' }}>
-                {personalBest}ms
-              </div>
+          {stage === 'COUNTDOWN' && (
+            <div className="flex-center column">
+              <span className="stat-label">INIT_SEQ</span>
+              <span className="numeric pulse-breathing" style={{ fontSize: '6rem', color: 'var(--cyan)' }}>{countdown > 0 ? countdown : 'GO'}</span>
             </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ color: 'rgba(200,200,232,0.4)', letterSpacing: '2px', marginBottom: '0.25rem' }}>AVG (LAST {history.length})</div>
-              <div style={{ fontFamily: 'var(--font-numeric)', fontSize: '2rem', color: 'var(--cyan)' }}>
-                {avg}ms
-              </div>
-            </div>
-          </div>
+          )}
 
-          {/* History chips */}
-          <div className="practice-history">
-            {history.map((ms, i) => (
-              <div
-                key={i}
-                className={`history-chip ${ms === personalBest ? 'history-chip--best' : ''}`}
+          {(stage === 'WAIT' || stage === 'FIRE') && (
+            <div className={`flex-center column ${stage === 'FIRE' ? 'pulse-tensed' : 'pulse-breathing'}`} style={{ position: 'relative', width: '100%' }}>
+              <h2 className="title-display" style={{ fontSize: '1.2rem', marginBottom: '3rem', color: stage === 'FIRE' ? 'var(--green)' : 'var(--red)' }}>
+                {stage === 'WAIT' ? 'ANALYZING...' : 'FIRE!'}
+              </h2>
+              <button
+                className="btn-precision"
+                style={{ width: '200px', height: '200px', borderRadius: '50%', fontSize: '1.5rem', borderColor: stage === 'FIRE' ? 'var(--green)' : 'var(--red)', color: stage === 'FIRE' ? 'var(--green)' : 'var(--red)' }}
+                onClick={handleReact}
               >
-                {ms}
-              </div>
+                REACT
+              </button>
+            </div>
+          )}
+
+          {(stage === 'RESULT_HIT' || stage === 'RESULT_EARLY') && (
+            <div className="flex-center column">
+              {stage === 'RESULT_HIT' ? (
+                <>
+                  <span className="numeric" style={{ fontSize: '5rem', color: 'var(--cyan)', lineHeight: '1' }}>{reactionMs}ms</span>
+                  <p className="title-display" style={{ fontSize: '0.8rem', marginTop: '1rem', color: grade(reactionMs!, DIFFICULTIES[difficulty].target).color }}>
+                    {grade(reactionMs!, DIFFICULTIES[difficulty].target).label}
+                  </p>
+                </>
+              ) : (
+                <div style={{ textAlign: 'center' }}>
+                  <h2 className="title-display" style={{ fontSize: '2rem', color: 'var(--red)' }}>FALSE START</h2>
+                  <p style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '1rem', letterSpacing: '2px' }}>NEURAL_SYNC_LOST</p>
+                </div>
+              )}
+              <button className="btn-precision" style={{ marginTop: '3rem' }} onClick={startRound}>REPEAT_TEST</button>
+            </div>
+          )}
+
+        </div>
+
+        <div className="flex-center column" style={{ alignItems: 'flex-start', justifyContent: 'flex-start' }}>
+
+          <h3 className="title-display" style={{ fontSize: '0.7rem', marginBottom: '1.5rem' }}>CALIBRATION</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%', marginBottom: '3rem' }}>
+            {(Object.entries(DIFFICULTIES) as [Difficulty, typeof DIFFICULTIES[Difficulty]][]).map(([key, d]) => (
+              <button
+                key={key}
+                className="btn-precision"
+                style={{ fontSize: '0.6rem', padding: '0.6rem', textAlign: 'left', opacity: difficulty === key ? 1 : 0.3, borderColor: difficulty === key ? 'var(--cyan)' : 'var(--border-dim)' }}
+                onClick={() => { setDifficulty(key); setStage('IDLE'); }}
+              >
+                {d.label} // TARGET: &lt;{d.target}MS
+              </button>
             ))}
           </div>
 
-          <button
-            onClick={() => {
-              setHistory([]);
-              setPersonalBest(null);
-              localStorage.removeItem(HISTORY_KEY);
-              localStorage.removeItem(BEST_KEY);
-            }}
-            style={{ fontFamily: 'var(--font-body)', fontSize: '0.65rem', letterSpacing: '2px', color: 'rgba(200,200,232,0.25)', background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase' }}
-          >
-            CLEAR HISTORY
-          </button>
-        </div>
-      )}
+          <h3 className="title-display" style={{ fontSize: '0.7rem', marginBottom: '1.5rem' }}>BIOMETRIC_DATA</h3>
+          <div style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="stat-box">
+              <span className="stat-label">PERSONAL_BEST</span>
+              <span className="stat-value numeric">{personalBest || '---'}ms</span>
+            </div>
+            <div className="stat-box">
+              <span className="stat-label">AVERAGE_REFLEX</span>
+              <span className="stat-value numeric">{avg || '---'}ms</span>
+            </div>
+          </div>
 
-      {/* Arena CTA */}
-      {account && stage !== 'WAIT' && stage !== 'FIRE' && stage !== 'COUNTDOWN' && (
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'rgba(200,200,232,0.3)', letterSpacing: '2px' }}>
-          Ready for the real thing?{' '}
-          <Link to="/duel" style={{ color: 'var(--green)', textDecoration: 'none' }}>
-            ENTER ARENA →
-          </Link>
-        </p>
-      )}
+          <div style={{ marginTop: '2rem', width: '100%' }}>
+            <span className="stat-label">RECENT_RECORDS</span>
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+              {history.map((ms, i) => (
+                <div key={i} className="numeric" style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', background: 'rgba(255,255,255,0.05)', color: ms === personalBest ? 'var(--gold)' : 'var(--cyan)' }}>
+                  {ms}ms
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+      </div>
+
     </div>
   );
 }
