@@ -21,9 +21,11 @@ const PARTICLES = [
 ];
 
 export function Home() {
-  const { account, connect } = useWallet();
+  // isConnecting is wagmi's own status — no local connecting state needed.
+  // Driving it from wagmi prevents the flash caused by async connect() resolving
+  // before the RainbowKit modal even opens.
+  const { account, connect, isConnecting } = useWallet();
   const navigate = useNavigate();
-  const [connecting, setConnecting] = useState(false);
   const [justConnected, setJustConnected] = useState(false);
   const [duelCount, setDuelCount] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -40,25 +42,23 @@ export function Home() {
   useEffect(() => {
     if (account && !prevAccount) {
       setJustConnected(true);
-      setConnecting(false);
       setPrevAccount(account);
       const hasOnboarded = localStorage.getItem('pulse_onboarded');
       if (!hasOnboarded) {
         setTimeout(() => setShowOnboarding(true), 700);
       }
     }
+    if (!account && prevAccount) {
+      // Wallet disconnected — reset so button reappears cleanly
+      setPrevAccount(null);
+      setJustConnected(false);
+    }
   }, [account, prevAccount]);
 
-  const handleConnect = async () => {
+  // Fire-and-forget — RainbowKit owns the modal lifecycle
+  const handleConnect = () => {
     ensureAudio();
-    setConnecting(true);
-    try {
-      await connect();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setConnecting(false);
-    }
+    connect();
   };
 
   const handleOnboardingComplete = () => {
@@ -121,14 +121,16 @@ export function Home() {
 
           {!account ? (
             <button
-              className={`connect-hero-btn ${connecting ? 'connect-hero-btn--loading' : ''}`}
+              className={`connect-hero-btn ${isConnecting ? 'connect-hero-btn--loading' : ''}`}
               onClick={handleConnect}
-              disabled={connecting}
+              disabled={isConnecting}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
-              {connecting ? (
+              {isConnecting ? (
                 <span className="connect-loading">
-                  <span className="dot" /><span className="dot" style={{ animationDelay: '0.2s' }} /><span className="dot" style={{ animationDelay: '0.4s' }} />
+                  <span className="dot" />
+                  <span className="dot" style={{ animationDelay: '0.2s' }} />
+                  <span className="dot" style={{ animationDelay: '0.4s' }} />
                 </span>
               ) : 'CONNECT WALLET'}
             </button>

@@ -5,28 +5,39 @@ import { useConnectModal } from '@rainbow-me/rainbowkit';
 interface WalletContextType {
   account: `0x${string}` | null;
   walletClient: any;
-  connect: () => Promise<void>;
+  isConnecting: boolean;
+  connect: () => void;
 }
 
 const WalletContext = createContext<WalletContextType>({
   account: null,
   walletClient: null,
-  connect: async () => { },
+  isConnecting: false,
+  connect: () => { },
 });
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const { address } = useAccount();
+  // Only treat as connected when status is strictly 'connected'.
+  // 'reconnecting' emits a valid address while wagmi tries to restore a prior
+  // session — if the RPC is slow this causes the button to flicker visible/hidden.
+  const { address, status } = useAccount();
   const { data: walletClient } = useWalletClient();
   const { openConnectModal } = useConnectModal();
 
-  const connect = async () => {
-    if (openConnectModal) {
-      openConnectModal();
-    }
+  const account: `0x${string}` | null =
+    status === 'connected' ? (address ?? null) : null;
+
+  const isConnecting = status === 'connecting' || status === 'reconnecting';
+
+  // openConnectModal is fire-and-forget (returns void). Keep connect() synchronous
+  // so callers don't try to await it and accidentally fire setConnecting(false)
+  // before the modal even opens.
+  const connect = () => {
+    openConnectModal?.();
   };
 
   return (
-    <WalletContext.Provider value={{ account: address || null, walletClient, connect }}>
+    <WalletContext.Provider value={{ account, walletClient, isConnecting, connect }}>
       {children}
     </WalletContext.Provider>
   );
