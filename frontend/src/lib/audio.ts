@@ -84,3 +84,8 @@ export function playBassDrop() {
   osc.start();
   osc.stop(audioCtx.currentTime + 0.5);
 }
+export async function ensureAudio() {
+  if (audioCtx.state === 'suspended') {
+    await audioCtx.resume();
+  }
+}

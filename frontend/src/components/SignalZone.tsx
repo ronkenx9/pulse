@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { usePulseGame } from '../hooks/usePulseGame';
 import { useReactivity } from '../hooks/useReactivity';
-import { playHum, playSnap, playBassDrop, audioCtx } from '../lib/audio';
+import { playHum, playSnap, playBassDrop, audioCtx, ensureAudio } from '../lib/audio';
 
 // UI State Machine matching PRD: WAITING -> FIRE -> REACTED -> ASYNC_RESOLVE -> RESULT
 type UIState = 'WAITING' | 'FIRE' | 'REACTED' | 'ASYNC_RESOLVE' | 'RESULT';
@@ -165,7 +165,7 @@ export function SignalZone({ duelId }: { duelId: string }) {
                 <button
                     className="btn-primary"
                     style={{ borderColor: 'var(--red)', color: 'var(--red)', marginTop: '1rem', fontSize: '0.7rem' }}
-                    onClick={handleReact}
+                    onClick={() => { ensureAudio(); handleReact(); }}
                 >
                     TEST FALSE START
                 </button>

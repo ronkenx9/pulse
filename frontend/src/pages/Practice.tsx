@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
-import { playSnap, playHum, playBassDrop } from '../lib/audio';
+import { playSnap, playHum, playBassDrop, ensureAudio } from '../lib/audio';
 
 type Difficulty = 'ROOKIE' | 'SOLDIER' | 'LEGEND';
 type Stage = 'IDLE' | 'COUNTDOWN' | 'WAIT' | 'FIRE' | 'RESULT_HIT' | 'RESULT_EARLY';
@@ -67,6 +67,7 @@ export function Practice() {
   };
 
   const startRound = () => {
+    ensureAudio();
     if (signalTimer.current) clearTimeout(signalTimer.current);
     if (countdownTimer.current) clearInterval(countdownTimer.current);
 

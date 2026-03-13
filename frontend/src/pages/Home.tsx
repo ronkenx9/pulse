@@ -5,6 +5,7 @@ import { useWallet } from '../context/WalletContext';
 import { somniaTestnet } from '../lib/chain';
 import { PULSE_GAME_ADDRESS, pulseGameAbi } from '../lib/contracts';
 import { OnboardingSlideshow } from '../components/OnboardingSlideshow';
+import { ensureAudio } from '../lib/audio';
 
 const publicClient = createPublicClient({ chain: somniaTestnet, transport: http() });
 
@@ -49,6 +50,7 @@ export function Home() {
   }, [account, prevAccount]);
 
   const handleConnect = async () => {
+    ensureAudio();
     setConnecting(true);
     try {
       await connect();
@@ -138,10 +140,10 @@ export function Home() {
               </div>
               <div className="cta-row">
                 <Link to="/duel">
-                  <button className="cta-btn cta-btn--primary">ENTER ARENA</button>
+                  <button className="cta-btn cta-btn--primary" onClick={() => ensureAudio()}>ENTER ARENA</button>
                 </Link>
                 <Link to="/practice">
-                  <button className="cta-btn cta-btn--secondary">PRACTICE</button>
+                  <button className="cta-btn cta-btn--secondary" onClick={() => ensureAudio()}>PRACTICE</button>
                 </Link>
               </div>
               <Link to="/leaderboard" className="leaderboard-link">
