@@ -34,13 +34,22 @@ export function Duel() {
   // Active duel
   const [activeDuelId, setActiveDuelId] = useState<string | null>(null);
 
-  // Auto-fill from ?join=ID URL param
+  // Auto-fill from URL params
   useEffect(() => {
+    // ?join=ID — pre-fill the join field (shared invite link)
     const paramId = searchParams.get('join');
     if (paramId) {
       setJoinId(paramId);
-      // Show stake info for joining
       setJoinInfo({ stake: stakeSTT });
+    }
+
+    // ?opponent=ADDRESS&stake=AMOUNT — pre-fill direct challenge (bot / Practice mode)
+    const paramOpponent = searchParams.get('opponent');
+    const paramStake    = searchParams.get('stake');
+    if (paramOpponent && /^0x[0-9a-fA-F]{40}$/.test(paramOpponent)) {
+      setOpponent(paramOpponent);
+      setShowDirect(true); // auto-open the collapsible so user sees it immediately
+      if (paramStake) setStakeSTT(paramStake);
     }
   }, [searchParams]); // eslint-disable-line
 
