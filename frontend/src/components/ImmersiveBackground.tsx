@@ -12,12 +12,16 @@ export const ImmersiveBackground: React.FC = () => {
     const pulse = usePulseSync();
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
-    // Parallax tilt calculation
-    const tiltY = (mouse.x / window.innerWidth - 0.5) * -10;
+    // Refs for performance - avoids useEffect re-triggers
+    const mouseRef = useRef(mouse);
+    const pulseRef = useRef(pulse);
+
+    useEffect(() => { mouseRef.current = mouse; }, [mouse]);
+    useEffect(() => { pulseRef.current = pulse; }, [pulse]);
 
     // Particle System
     const particles = useMemo(() => {
-        return Array.from({ length: 100 }, () => ({
+        return Array.from({ length: 80 }, () => ({
             x: Math.random() * window.innerWidth,
             y: Math.random() * window.innerHeight,
             size: Math.random() > 0.8 ? 4 : 2,
@@ -30,66 +34,85 @@ export const ImmersiveBackground: React.FC = () => {
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { alpha: false }); // Perf: no alpha for background
         if (!ctx) return;
 
         let animationFrame: number;
 
-        const render = () => {
+        const handleResize = () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        };
+        window.addEventListener('resize', handleResize);
+        handleResize();
 
-            particles.forEach(p => {
+        const render = () => {
+            const m = mouseRef.current;
+            const p = pulseRef.current;
+
+            // Deep background clear
+            ctx.fillStyle = '#0a0a14';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const pulseScale = p % 2 === 0 ? 1.5 : 1;
+
+            particles.forEach((part, i) => {
                 // Move
-                p.x += p.vx;
-                p.y += p.vy;
+                part.x += part.vx;
+                part.y += part.vy;
 
                 // Wrap
-                if (p.x < 0) p.x = canvas.width;
-                if (p.x > canvas.width) p.x = 0;
-                if (p.y < 0) p.y = canvas.height;
-                if (p.y > canvas.height) p.y = 0;
+                if (part.x < 0) part.x = canvas.width;
+                if (part.x > canvas.width) part.x = 0;
+                if (part.y < 0) part.y = canvas.height;
+                if (part.y > canvas.height) part.y = 0;
 
                 // Mouse avoidance
-                const dx = mouse.x - p.x;
-                const dy = mouse.y - p.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist < 150) {
-                    p.x -= dx * 0.01;
-                    p.y -= dy * 0.01;
+                const dx = m.x - part.x;
+                const dy = m.y - part.y;
+                const distSq = dx * dx + dy * dy;
+                if (distSq < 22500) { // 150^2
+                    const dist = Math.sqrt(distSq);
+                    part.x -= (dx / dist) * 1.5;
+                    part.y -= (dy / dist) * 1.5;
                 }
 
-                // Pulse scale
-                const pulseScale = pulse % 2 === 0 ? 1.5 : 1;
-
-                // Draw
-                ctx.fillStyle = p.color;
+                // Draw Particle
+                ctx.fillStyle = part.color;
                 ctx.globalAlpha = 0.4;
-                ctx.fillRect(p.x, p.y, p.size * pulseScale, p.size * pulseScale);
+                ctx.fillRect(part.x, part.y, part.size * pulseScale, part.size * pulseScale);
 
-                // Lines
-                particles.forEach(other => {
-                    const odx = p.x - other.x;
-                    const ody = p.y - other.y;
-                    const odist = Math.sqrt(odx * odx + ody * ody);
-                    if (odist < 80) {
+                // Lines optimization: only check next particles
+                for (let j = i + 1; j < particles.length; j++) {
+                    const other = particles[j];
+                    const odx = part.x - other.x;
+                    const ody = part.y - other.y;
+                    const odistSq = odx * odx + ody * ody;
+                    if (odistSq < 6400) { // 80^2
+                        const odist = Math.sqrt(odistSq);
                         ctx.beginPath();
-                        ctx.moveTo(p.x, p.y);
+                        ctx.moveTo(part.x, part.y);
                         ctx.lineTo(other.x, other.y);
-                        ctx.strokeStyle = p.color;
-                        ctx.globalAlpha = 0.1 * (1 - odist / 80);
+                        ctx.strokeStyle = part.color;
+                        ctx.globalAlpha = 0.08 * (1 - odist / 80);
                         ctx.stroke();
                     }
-                });
+                }
             });
 
             animationFrame = requestAnimationFrame(render);
         };
 
         render();
-        return () => cancelAnimationFrame(animationFrame);
-    }, [mouse, pulse, particles]);
+        return () => {
+            cancelAnimationFrame(animationFrame);
+            window.removeEventListener('resize', handleResize);
+        };
+    }, [particles]); // ONLY depends on particles setup
+
+    // Derived tilt for the grid layer - use refs or state? 
+    // State-based tilt is actually OK for the CSS layer because it's hardware accelerated
+    const tiltY = (mouse.x / window.innerWidth - 0.5) * -10;
 
     return (
         <div style={{
@@ -98,7 +121,8 @@ export const ImmersiveBackground: React.FC = () => {
             zIndex: -1,
             background: 'var(--bg-deep)',
             perspective: '1000px',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            pointerEvents: 'none'
         }}>
             {/* Layer 0: Tron Grid */}
             <div style={{
@@ -108,13 +132,14 @@ export const ImmersiveBackground: React.FC = () => {
                 width: '200%',
                 height: '200%',
                 background: `
-          linear-gradient(var(--purple) 1px, transparent 1px),
-          linear-gradient(90deg, var(--purple) 1px, transparent 1px)
-        `,
+                    linear-gradient(var(--purple) 1px, transparent 1px),
+                    linear-gradient(90deg, var(--purple) 1px, transparent 1px)
+                `,
                 backgroundSize: '80px 80px',
                 transform: `rotateX(60deg) translateZ(-200px) rotateZ(${tiltY * 0.5}deg)`,
                 opacity: 0.1,
-                transition: 'transform 0.1s ease-out'
+                transition: 'transform 0.1s ease-out',
+                willChange: 'transform'
             }} />
 
             {/* Grid Pulse Mask */}
@@ -131,7 +156,8 @@ export const ImmersiveBackground: React.FC = () => {
                 style={{
                     position: 'absolute',
                     inset: 0,
-                    mixBlendMode: 'screen'
+                    mixBlendMode: 'screen',
+                    pointerEvents: 'none'
                 }}
             />
 
