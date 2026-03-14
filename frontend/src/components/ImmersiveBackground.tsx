@@ -13,7 +13,6 @@ export const ImmersiveBackground: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     // Parallax tilt calculation
-    const tiltX = (mouse.y / window.innerHeight - 0.5) * 10;
     const tiltY = (mouse.x / window.innerWidth - 0.5) * -10;
 
     // Particle System
