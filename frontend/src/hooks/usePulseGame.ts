@@ -77,9 +77,14 @@ export function usePulseGame() {
         functionName: 'getRecord',
         args: [player]
       });
-      // Result is tuple: [wins, losses, duelsPlayed]
-      const [wins, losses, duelsPlayed] = result as [bigint, bigint, bigint];
-      return { wins, losses, duelsPlayed };
+
+      if (Array.isArray(result)) {
+        const [wins, losses, duelsPlayed] = result;
+        return { wins, losses, duelsPlayed };
+      } else {
+        const r = result as any;
+        return { wins: r.wins, losses: r.losses, duelsPlayed: r.duelsPlayed };
+      }
     } catch (err) {
       console.error('getRecord error:', err);
       return null;
@@ -95,7 +100,7 @@ export function usePulseGame() {
         functionName: 'getElo',
         args: [player]
       });
-      return elo as bigint;
+      return BigInt(elo as string | number | bigint);
     } catch (err) {
       console.error('getElo error:', err);
       return null;
