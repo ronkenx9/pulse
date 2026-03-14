@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { createPublicClient, http, encodeFunctionData } from 'viem';
+import { createPublicClient, http } from 'viem';
 import { somniaTestnet } from '../lib/chain';
 import { PULSE_GAME_ADDRESS, pulseGameAbi } from '../lib/contracts';
 import { useWallet } from '../context/WalletContext';
@@ -117,6 +117,23 @@ export function usePulseGame() {
     }
   };
 
+  const armSignal = async (duelId: string) => {
+    if (!walletClient || !account) return;
+    try {
+      const hash = await walletClient.writeContract({
+        address: PULSE_GAME_ADDRESS as `0x${string}`,
+        abi: pulseGameAbi,
+        functionName: 'armSignal',
+        args: [BigInt(duelId)],
+        account
+      });
+      console.log(`[PULSE] armSignal tx: ${hash}`);
+      return hash;
+    } catch (err) {
+      console.error('[PULSE] armSignal error:', err);
+    }
+  };
+
   const joinDuel = async (duelId: string, stakeStr: string) => {
     if (!walletClient || !account) return;
     try {
@@ -131,14 +148,10 @@ export function usePulseGame() {
       });
       await publicClient.waitForTransactionReceipt({ hash });
 
-      // After joining, schedule armSignal via Cron (logged for now — handled on-chain via Reactivity)
-      const randomDelayMs = Math.floor(Math.random() * 6000) + 2000; // 2-8s
-      const calldata = encodeFunctionData({
-        abi: pulseGameAbi,
-        functionName: 'armSignal',
-        args: [BigInt(duelId)]
-      });
-      console.log(`[PULSE] Duel ${duelId} joined. armSignal calldata ready (delay ${randomDelayMs}ms):`, calldata);
+      // Fire signal after a random 2–4s delay so both players have time to see the WAITING screen
+      const delay = Math.floor(Math.random() * 2000) + 2000;
+      console.log(`[PULSE] Duel ${duelId} joined. Arming signal in ${delay}ms...`);
+      setTimeout(() => armSignal(duelId), delay);
 
       return hash;
     } catch (err) {

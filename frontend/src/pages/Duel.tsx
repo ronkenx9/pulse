@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { parseEther } from 'viem';
+import { parseEther, formatEther } from 'viem';
 import { MatchFeed } from '../components/MatchFeed';
 import { SignalZone } from '../components/SignalZone';
 import { EloDisplay } from '../components/EloDisplay';
@@ -10,7 +10,7 @@ import { startAmbient } from '../lib/audio';
 const BASE_URL = window.location.origin;
 
 export function Duel() {
-  const { account, createDuel, joinDuel } = usePulseGame();
+  const { account, createDuel, joinDuel, getDuel } = usePulseGame();
   const [searchParams] = useSearchParams();
 
   const [stakeSTT, setStakeSTT] = useState('0.001');
@@ -22,6 +22,8 @@ export function Duel() {
   const [joinId, setJoinId] = useState('');
   const [joining, setJoining] = useState(false);
   const [activeDuelId, setActiveDuelId] = useState<string | null>(null);
+  const [duelStatus, setDuelStatus] = useState<'OPEN' | 'ARMED_PENDING' | 'ARMED' | null>(null);
+  const [isBotChallenge, setIsBotChallenge] = useState(false);
 
   const autoOpponentRef = useRef<string | null>(null);
   const autoStakeRef = useRef<string | null>(null);
@@ -33,17 +35,49 @@ export function Duel() {
 
   useEffect(() => {
     const paramId = searchParams.get('join');
-    if (paramId) setJoinId(paramId);
-
     const paramOpponent = searchParams.get('opponent');
     const paramStake = searchParams.get('stake');
+
+    if (paramId) {
+      setJoinId(paramId);
+      // If stake is in URL, pre-fill it; otherwise fetch from chain
+      if (paramStake) {
+        setStakeSTT(paramStake);
+      }
+    }
+
     if (paramOpponent && /^0x[0-9a-fA-F]{40}$/.test(paramOpponent)) {
       setOpponent(paramOpponent);
       if (paramStake) setStakeSTT(paramStake);
       autoOpponentRef.current = paramOpponent;
       autoStakeRef.current = paramStake ?? stakeSTT;
+      setIsBotChallenge(true);
     }
   }, [searchParams]);
+
+  // Poll duel state every 3s during bot challenge so we can show "BOT JOINING..." vs "SIGNAL IMMINENT"
+  useEffect(() => {
+    if (!activeDuelId || !isBotChallenge) return;
+    const poll = setInterval(async () => {
+      const duel = await getDuel(activeDuelId);
+      if (!duel) return;
+      if (duel.state === 0) setDuelStatus('OPEN');
+      else if (duel.state === 1) setDuelStatus('ARMED_PENDING');
+      else if (duel.state === 2) { setDuelStatus('ARMED'); clearInterval(poll); }
+      else clearInterval(poll); // resolved/cancelled
+    }, 3000);
+    return () => clearInterval(poll);
+  }, [activeDuelId, isBotChallenge]);
+
+  // When joining via link, fetch the duel's stake from chain so joiner always matches
+  useEffect(() => {
+    if (!joinId) return;
+    getDuel(joinId).then(duel => {
+      if (duel?.stake && duel.stake > 0n) {
+        setStakeSTT(formatEther(duel.stake));
+      }
+    });
+  }, [joinId]);
 
   useEffect(() => {
     if (!account || autoChallengedRef.current || !autoOpponentRef.current) return;
@@ -68,7 +102,7 @@ export function Duel() {
 
   const handleCopyLink = () => {
     if (!openChallengeId) return;
-    navigator.clipboard.writeText(`${BASE_URL}/duel?join=${openChallengeId}`);
+    navigator.clipboard.writeText(`${BASE_URL}/duel?join=${openChallengeId}&stake=${stakeSTT}`);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
   };
@@ -124,6 +158,12 @@ export function Duel() {
             <div style={{ textAlign: 'center', flex: 1 }}>
               <div className="title-display" style={{ fontSize: '1rem', color: 'var(--gold)' }}>ROUND 01</div>
               <div style={{ fontSize: '0.5rem', color: 'var(--cyan)', marginTop: '0.2rem' }}>SESSION_{activeDuelId.slice(-4)}</div>
+              {isBotChallenge && duelStatus === 'OPEN' && (
+                <div className="arcade-blink" style={{ fontSize: '0.4rem', color: 'var(--gold)', marginTop: '0.3rem' }}>BOT JOINING...</div>
+              )}
+              {isBotChallenge && duelStatus === 'ARMED_PENDING' && (
+                <div className="arcade-blink" style={{ fontSize: '0.4rem', color: 'var(--red)', marginTop: '0.3rem' }}>SIGNAL IMMINENT</div>
+              )}
             </div>
 
             <div style={{ display: 'flex', flex: 1, justifyContent: 'flex-end', alignItems: 'center', gap: '2rem' }}>
@@ -209,7 +249,7 @@ export function Duel() {
               <div className="stat-box" style={{ borderColor: 'var(--gold)', marginBottom: '1.5rem', background: 'rgba(0,0,0,0.5)' }}>
                 <span className="stat-label">TICKET STUB</span>
                 <div style={{ display: 'flex', gap: '1rem', marginTop: '0.8rem' }}>
-                  <input readOnly value={`${BASE_URL}/duel?join=${openChallengeId}`} style={{ background: 'var(--bg-deep)', border: 'none', color: 'var(--cyan)', padding: '0.5rem', flex: 1, fontSize: '0.65rem', fontFamily: 'var(--font-mono)' }} />
+                  <input readOnly value={`${BASE_URL}/duel?join=${openChallengeId}&stake=${stakeSTT}`} style={{ background: 'var(--bg-deep)', border: 'none', color: 'var(--cyan)', padding: '0.5rem', flex: 1, fontSize: '0.65rem', fontFamily: 'var(--font-mono)' }} />
                   <button className="btn-precision" style={{ padding: '0.5rem 1rem', fontSize: '0.5rem' }} onClick={handleCopyLink}>{linkCopied ? 'OK' : 'COPY'}</button>
                 </div>
               </div>
