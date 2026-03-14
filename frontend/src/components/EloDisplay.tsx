@@ -15,7 +15,7 @@ export function EloDisplay({ player }: { player: `0x${string}` }) {
         publicClient.readContract({
             address: PULSE_GAME_ADDRESS as `0x${string}`,
             abi: pulseGameAbi,
-            functionName: 'playerElo',
+            functionName: 'getElo',
             args: [player],
         }).then(c => setElo(Number(c))).catch(() => { });
     }, [player]);
