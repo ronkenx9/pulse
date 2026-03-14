@@ -79,7 +79,7 @@ export function Home() {
 
         <div style={{ marginBottom: '6rem' }}>
           <p className="numeric" style={{ color: 'var(--magenta)', fontSize: '0.9rem', letterSpacing: '4px' }}>
-            [ SOMNIA CHAIN >> SEASON 01 ]
+            [ SOMNIA CHAIN &gt;&gt; SEASON 01 ]
           </p>
         </div>
 

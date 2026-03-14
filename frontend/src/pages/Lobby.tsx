@@ -174,7 +174,7 @@ export function Lobby() {
                             padding: '1rem 3rem',
                             boxShadow: '4px 0 0 0 var(--gold), -4px 0 0 0 var(--gold), 0 4px 0 0 var(--gold), 0 -4px 0 0 var(--gold), 0 8px 0 0 var(--bg-deep)'
                         }}>
-                             HIGH SCORES >>
+                            HIGH SCORES &gt;&gt;
                         </div>
                     </Link>
 

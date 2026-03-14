@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
 import { playSnap, playHum, playBassDrop, ensureAudio, startAmbient } from '../lib/audio';
 
@@ -24,6 +24,7 @@ const BEST_KEY = 'pulse_practice_best';
 const BOT_ADDRESS = '0x4EE45DA3868ba337AAD8B2803f325a2900EDb2a5';
 
 export function Practice() {
+  const navigate = useNavigate();
   const { account } = useWallet();
   const [mode, setMode] = useState<'OFFLINE' | 'ON-CHAIN'>('OFFLINE');
   const [difficulty, setDifficulty] = useState<Difficulty>('SOLDIER');
@@ -158,7 +159,10 @@ export function Practice() {
           {stage === 'IDLE' && (
             <div className="flex-center column">
               <h2 className="title-display arcade-blink" style={{ fontSize: '1rem', marginBottom: '2.5rem', color: 'var(--green)' }}>P1 READY</h2>
-              <button className="btn-precision" style={{ padding: '2rem 4rem', fontSize: '1.2rem' }} onClick={mode === 'OFFLINE' ? startRound : () => navigate(`/duel?opponent=${BOT_ADDRESS}&stake=0.01`)}>
+              <button className="btn-precision" style={{ padding: '2rem 4rem', fontSize: '1.2rem' }} onClick={mode === 'OFFLINE' ? startRound : () => {
+                if (!account) return alert("CONNECT WALLET TO ENTER ARENA");
+                navigate(`/duel?opponent=${BOT_ADDRESS}&stake=0.01`);
+              }}>
                 {mode === 'OFFLINE' ? 'START' : 'CHALLENGE'}
               </button>
             </div>
@@ -243,7 +247,7 @@ export function Practice() {
                 }}
                 onClick={() => { setDifficulty(key); setStage('IDLE'); }}
               >
-                {d.stage}: {d.label} >> OBJ: &lt;{d.target}ms
+                {d.stage}: {d.label} &gt;&gt; OBJ: &lt;{d.target}ms
               </button>
             ))}
           </div>
