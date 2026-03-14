@@ -8,6 +8,7 @@ import { usePulseGame } from '../hooks/usePulseGame';
 import { startAmbient } from '../lib/audio';
 
 const BASE_URL = window.location.origin;
+const BOT_ADDRESS = '0x4EE45DA3868ba337AAD8B2803f325a2900EDb2a5';
 
 export function Duel() {
   const { account, createDuel, joinDuel, getDuel } = usePulseGame();
@@ -24,6 +25,7 @@ export function Duel() {
   const [activeDuelId, setActiveDuelId] = useState<string | null>(null);
   const [duelStatus, setDuelStatus] = useState<'OPEN' | 'ARMED_PENDING' | 'ARMED' | null>(null);
   const [isBotChallenge, setIsBotChallenge] = useState(false);
+  const [autoCreating, setAutoCreating] = useState(false);
 
   const autoOpponentRef = useRef<string | null>(null);
   const autoStakeRef = useRef<string | null>(null);
@@ -40,7 +42,6 @@ export function Duel() {
 
     if (paramId) {
       setJoinId(paramId);
-      // If stake is in URL, pre-fill it; otherwise fetch from chain
       if (paramStake) {
         setStakeSTT(paramStake);
       }
@@ -51,11 +52,11 @@ export function Duel() {
       if (paramStake) setStakeSTT(paramStake);
       autoOpponentRef.current = paramOpponent;
       autoStakeRef.current = paramStake ?? stakeSTT;
-      setIsBotChallenge(true);
+      setIsBotChallenge(paramOpponent.toLowerCase() === BOT_ADDRESS.toLowerCase());
     }
   }, [searchParams]);
 
-  // Poll duel state every 3s during bot challenge so we can show "BOT JOINING..." vs "SIGNAL IMMINENT"
+  // Poll duel state every 3s during bot challenge
   useEffect(() => {
     if (!activeDuelId || !isBotChallenge) return;
     const poll = setInterval(async () => {
@@ -64,12 +65,11 @@ export function Duel() {
       if (duel.state === 0) setDuelStatus('OPEN');
       else if (duel.state === 1) setDuelStatus('ARMED_PENDING');
       else if (duel.state === 2) { setDuelStatus('ARMED'); clearInterval(poll); }
-      else clearInterval(poll); // resolved/cancelled
+      else clearInterval(poll);
     }, 3000);
     return () => clearInterval(poll);
   }, [activeDuelId, isBotChallenge]);
 
-  // When joining via link, fetch the duel's stake from chain so joiner always matches
   useEffect(() => {
     if (!joinId) return;
     getDuel(joinId).then(duel => {
@@ -82,13 +82,21 @@ export function Duel() {
   useEffect(() => {
     if (!account || autoChallengedRef.current || !autoOpponentRef.current) return;
     autoChallengedRef.current = true;
+    setAutoCreating(true);
+
     const stakeVal = autoStakeRef.current ?? '0.001';
     let stakeWei: bigint;
     try { stakeWei = parseEther(stakeVal); } catch { stakeWei = parseEther('0.001'); }
 
     createDuel(autoOpponentRef.current as `0x${string}`, stakeWei.toString())
-      .then(id => { if (id) setActiveDuelId(id); })
-      .catch(() => { autoChallengedRef.current = false; });
+      .then(id => {
+        if (id) setActiveDuelId(id);
+        setAutoCreating(false);
+      })
+      .catch(() => {
+        autoChallengedRef.current = false;
+        setAutoCreating(false);
+      });
   }, [account]);
 
   const handleOpenChallenge = async () => {
@@ -203,6 +211,29 @@ export function Duel() {
   return (
     <div className="flex-center column pixel-in" style={{ height: '100vh', padding: '2rem' }}>
 
+      {/* ── Auto-Initializing Bot Duel Overlay ────────────────────────────── */}
+      {autoCreating && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 100,
+          background: 'var(--bg-deep)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <div className="arcade-blink" style={{ color: 'var(--magenta)', fontFamily: 'var(--font-display)', fontSize: '1.2rem', marginBottom: '2rem' }}>
+            SYNCING NEURAL LINK...
+          </div>
+          <p className="stat-label" style={{ color: 'var(--cyan)' }}>CHALLENGING_SOMNIA_AI_SENTINEL</p>
+          <div style={{ marginTop: '3rem', width: '300px', height: '4px', background: 'var(--purple)', opacity: 0.3 }}>
+            <div style={{ width: '60%', height: '100%', background: 'var(--magenta)', animation: 'marquee 2s linear infinite' }} />
+          </div>
+          <p style={{ marginTop: '2rem', fontSize: '0.6rem', opacity: 0.5 }}>PLEASE CONFIRM ON-CHAIN STAKE IN WALLET</p>
+        </div>
+      )}
+
       {/* ── Header Bar ────────────────────────────────────────────────────── */}
       <div style={{ width: '100%', maxWidth: '900px', marginBottom: '3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Link to="/lobby">
@@ -242,7 +273,7 @@ export function Duel() {
               onClick={handleOpenChallenge}
               disabled={openChallenging}
             >
-              {openChallenging ? 'BROADCASTING...' : 'BROADCAST CHALLENGE'}
+              {openChallenging ? 'CREATING...' : 'CREATE OPEN DUEL'}
             </button>
           ) : (
             <div style={{ width: '100%', animation: 'pixel-in 0.3s steps(3)' }}>
@@ -253,9 +284,12 @@ export function Duel() {
                   <button className="btn-precision" style={{ padding: '0.5rem 1rem', fontSize: '0.5rem' }} onClick={handleCopyLink}>{linkCopied ? 'OK' : 'COPY'}</button>
                 </div>
               </div>
-              <button className="btn-precision" style={{ width: '100%', background: 'var(--gold)', color: 'var(--bg-deep)', border: 'none' }} onClick={() => setActiveDuelId(openChallengeId)}>ENTER STANDBY</button>
+              <button className="btn-precision" style={{ width: '100%', background: 'var(--gold)', color: 'var(--bg-deep)', border: 'none' }} onClick={() => setActiveDuelId(openChallengeId)}>ENTER ARENA</button>
             </div>
           )}
+          <p style={{ marginTop: '1.5rem', fontSize: '0.5rem', color: 'var(--cyan)', opacity: 0.7, lineHeight: '1.4' }}>
+            [ OPEN DUEL: ANYONE CAN JOIN VIA TICKET ID OR LINK. ]
+          </p>
         </div>
 
         {/* Center: VS Divider */}
@@ -279,7 +313,7 @@ export function Duel() {
 
         {/* Right: Join */}
         <div style={{ padding: '3rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', background: 'rgba(0,0,0,0.2)' }}>
-          <h3 className="title-display" style={{ fontSize: '1rem', color: 'var(--cyan)', marginBottom: '2.5rem' }}>JOIN COMBAT</h3>
+          <h3 className="title-display" style={{ fontSize: '1rem', color: 'var(--cyan)', marginBottom: '2.5rem' }}>JOIN DUEL</h3>
 
           <div style={{ width: '100%', marginBottom: '2.5rem' }}>
             <label className="stat-label" style={{ marginBottom: '0.8rem', display: 'block' }}>TICKET_ID</label>
@@ -299,8 +333,11 @@ export function Duel() {
             onClick={handleJoin}
             disabled={joining || !joinId}
           >
-            {joining ? 'LINKING...' : 'SYNC LINK'}
+            {joining ? 'JOINING...' : 'JOIN DUEL'}
           </button>
+          <p style={{ marginTop: '1rem', fontSize: '0.5rem', color: 'var(--cyan)', opacity: 0.7, lineHeight: '1.4' }}>
+            [ JOIN: ENTER A SPECIFIC TICKET_ID TO ENTER THE FIGHT. ]
+          </p>
 
           <div style={{ marginTop: 'auto', width: '100%' }}>
             <div
@@ -315,7 +352,7 @@ export function Duel() {
               }}
               onClick={() => setShowDirect(!showDirect)}
             >
-              {showDirect ? '[ HIDE DIRECT ]' : '[ DIRECT CHALLENGE ]'}
+              {showDirect ? '[ HIDE PRIVATE ]' : '[ PRIVATE DUEL ]'}
             </div>
             {showDirect && (
               <div style={{ marginTop: '1rem', width: '100%', animation: 'pixel-in 0.2s steps(2)' }}>
@@ -323,11 +360,33 @@ export function Duel() {
                   type="text"
                   value={opponent}
                   onChange={e => setOpponent(e.target.value)}
-                  placeholder="ADDRESS"
+                  placeholder="OPPONENT WALLET ADDR"
                   className="numeric"
                   style={{ background: 'rgba(0,0,0,0.5)', border: 'none', color: 'var(--gold)', padding: '0.8rem', width: '100%', fontSize: '0.7rem', outline: 'none', marginBottom: '0.5rem' }}
                 />
-                <button className="btn-precision" style={{ width: '100%', padding: '0.5rem', fontSize: '0.5rem' }} onClick={handleDirectChallenge}>SEND CHALLENGE</button>
+                {opponent.toLowerCase() === BOT_ADDRESS.toLowerCase() && (
+                  <div style={{ color: 'var(--green)', fontSize: '0.4rem', marginBottom: '0.5rem', textAlign: 'center' }}>[ SOMNIA_SENTINEL_AI DETECTED ]</div>
+                )}
+                <button className="btn-precision" style={{ width: '100%', padding: '0.5rem', fontSize: '0.5rem' }} onClick={handleDirectChallenge}>INITIATE DUEL</button>
+              </div>
+            )}
+            {!showDirect && (
+              <div
+                className="pixel-in"
+                style={{
+                  marginTop: '1rem',
+                  padding: '1rem',
+                  background: 'rgba(57, 255, 20, 0.05)',
+                  border: '1px solid var(--green)',
+                  cursor: 'pointer'
+                }}
+                onClick={() => {
+                  setOpponent(BOT_ADDRESS);
+                  setShowDirect(true);
+                }}
+              >
+                <div className="stat-label" style={{ color: 'var(--green)', fontSize: '0.4rem' }}>NEURAL_SENTINEL_ONLINE</div>
+                <div style={{ fontSize: '0.5rem', opacity: 0.6, marginTop: '0.4rem' }}>CHALLENGE THE AI BOT TO ON-CHAIN PRACTICE.</div>
               </div>
             )}
           </div>
