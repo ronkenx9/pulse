@@ -4,9 +4,9 @@ import { createPublicClient, http } from 'viem';
 import { somniaTestnet } from '../lib/chain';
 import { PULSE_GAME_ADDRESS, pulseGameAbi } from '../lib/contracts';
 
-const publicClient = createPublicClient({ 
-    chain: somniaTestnet, 
-    transport: http() 
+const publicClient = createPublicClient({
+  chain: somniaTestnet,
+  transport: http()
 });
 
 const sdk = new SDK({ public: publicClient });
@@ -27,38 +27,39 @@ export function useReactivity(duelId: string | null) {
       try {
         const sub = await sdk.subscribe({
           ethCalls: [
-            { 
-              to: PULSE_GAME_ADDRESS as `0x${string}`, 
-              abi: pulseGameAbi, 
-              functionName: 'getDuel', 
-              args: [BigInt(duelId)] 
+            {
+              to: PULSE_GAME_ADDRESS as `0x${string}`,
+              abi: pulseGameAbi,
+              functionName: 'getDuel',
+              args: [BigInt(duelId)]
             } as any
           ],
           onData: (data: any) => {
             if (disconnected) return;
-            
+
             // Atomic state
-            const duelState = data.ethCalls[0].result?.[5]; 
-            
+            const result = data.ethCalls[0].result;
+            const duelState = Array.isArray(result) ? result[5] : result?.state;
+
             if (data.event?.name === 'SignalFired') {
               const now = performance.now();
               setSignalTimestamp(now);
               setIsArmed(true);
             }
-            
+
             if (data.event?.name === 'DuelResolved') {
               setSignalTimestamp((prevStamp) => {
                 const now = performance.now();
                 const clientReactionMs = prevStamp ? now - prevStamp : 0;
-                setGameResult({ 
-                  ...data.event.args, 
-                  clientReactionMs 
+                setGameResult({
+                  ...data.event.args,
+                  clientReactionMs
                 });
                 return prevStamp;
               });
-              
-              if (duelState === 3 && !isArmed) { 
-                 setIsFalseStart(true);
+
+              if (duelState === 3 && !isArmed) {
+                setIsFalseStart(true);
               }
             }
           }

@@ -46,11 +46,22 @@ export function usePulseGame() {
         functionName: 'getDuel',
         args: [BigInt(duelId)]
       });
-      // Result is tuple: [player1, player2, stake, signalBlock, winner, state]
-      const [player1, player2, stake, signalBlock, winner, state] = result as [
-        `0x${string}`, `0x${string}`, bigint, bigint, `0x${string}`, number
-      ];
-      return { player1, player2, stake, signalBlock, winner, state: state as DuelState };
+
+      // Viem may return as array or object depending on version/ABI style
+      if (Array.isArray(result)) {
+        const [player1, player2, stake, signalBlock, winner, state] = result;
+        return { player1, player2, stake, signalBlock, winner, state: state as DuelState };
+      } else {
+        const r = result as any;
+        return {
+          player1: r.player1,
+          player2: r.player2,
+          stake: r.stake,
+          signalBlock: r.signalBlock,
+          winner: r.winner,
+          state: r.state as DuelState
+        };
+      }
     } catch (err) {
       console.error('getDuel error:', err);
       return null;
