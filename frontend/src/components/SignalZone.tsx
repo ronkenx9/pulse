@@ -6,7 +6,7 @@ import { playHum, playSnap, playBassDrop, ensureAudio } from '../lib/audio';
 type UIState = 'WAITING' | 'FIRE' | 'REACTED' | 'ASYNC_RESOLVE' | 'RESULT';
 
 export function SignalZone({ duelId }: { duelId: string }) {
-    const { submitReaction } = usePulseGame();
+    const { submitReaction, account } = usePulseGame();
     const { isArmed, gameResult, isFalseStart } = useReactivity(duelId);
 
     const [humHandle, setHumHandle] = useState<{ stop: () => void } | null>(null);
@@ -207,11 +207,3 @@ export function SignalZone({ duelId }: { duelId: string }) {
         </div>
     );
 }
-
-// Global account support inside SignalZone
-import { useWallet } from '../context/WalletContext';
-function SignalZoneWrapper(props: any) {
-    const { account } = useWallet();
-    return <SignalZone {...props} account={account} />;
-}
-export { SignalZoneWrapper as SignalZone };
