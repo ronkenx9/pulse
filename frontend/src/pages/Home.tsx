@@ -27,61 +27,95 @@ export function Home() {
   };
 
   return (
-    <div className="flex-center column" style={{ height: '100vh', position: 'relative', textAlign: 'center', padding: '2rem' }}>
+    <div className="flex-center column" style={{ height: '100vh', position: 'relative', overflow: 'hidden' }}>
 
-      <div className="biometric-overlay pulse-breathing">
-        <div className="stat-box">
-          <span className="stat-label">SYSTEM STATUS</span>
-          <span className="stat-value" style={{ color: 'var(--green)', fontSize: '1rem' }}>NOMINAL (SINUS)</span>
-        </div>
-        <div className="stat-box" style={{ marginTop: '1.5rem' }}>
-          <span className="stat-label">GLOBAL DUELS</span>
-          <span className="stat-value numeric">
-            {duelCount !== null ? Number(duelCount).toLocaleString() : '---'}
-          </span>
+      {/* ── Top Marquee ──────────────────────────────────────────────────────── */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        width: '100%',
+        background: 'var(--red)',
+        color: '#fff',
+        padding: '0.5rem 0',
+        fontFamily: 'var(--font-display)',
+        fontSize: '0.5rem',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        zIndex: 10
+      }}>
+        <div style={{
+          display: 'inline-block',
+          animation: 'marquee 20s linear infinite',
+          paddingLeft: '100%'
+        }}>
+          WARNING: HIGH VOLTAGE ON-CHAIN STAKES :: ALL VICTORIES FINAL :: NEURAL SYNC REQUIRED :: SOMNIA PROTOCOL v2.0 ::
+          WARNING: HIGH VOLTAGE ON-CHAIN STAKES :: ALL VICTORIES FINAL :: NEURAL SYNC REQUIRED :: SOMNIA PROTOCOL v2.0 ::
         </div>
       </div>
 
-      <div className="pulse-breathing">
-        <div style={{ marginBottom: '1rem' }}>
-          <span className="stat-label" style={{ letterSpacing: '8px', opacity: 0.6 }}>SOMNIA TESTNET :: BIOMETRIC PROTOCOL</span>
+      <style>{`
+        @keyframes marquee {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-100%); }
+        }
+        @keyframes staggered-neon {
+          0%, 100% { opacity: 1; text-shadow: 3px 3px 0 var(--purple), -1px -1px 0 var(--green); }
+          50% { opacity: 0.8; text-shadow: none; }
+        }
+      `}</style>
+
+      {/* ── Main Content ────────────────────────────────────────────────────── */}
+      <div className="pixel-in" style={{ textAlign: 'center', zIndex: 5 }}>
+
+        <div style={{ marginBottom: '1.5rem' }}>
+          <span className="stat-label" style={{ color: 'var(--gold)', letterSpacing: '8px' }}>SOMNIA_ARCADE_SYSTEM</span>
         </div>
 
-        <h1 className="title-display" style={{ fontSize: 'clamp(4rem, 12vw, 10rem)', lineHeight: '0.8', marginBottom: '1rem' }}>
-          PULSE
+        <h1 className="title-display" style={{ fontSize: '10rem', marginBottom: '1rem', display: 'flex', gap: '0.5rem' }}>
+          {'PULSE'.split('').map((char, i) => (
+            <span key={i} style={{ animation: `staggered-neon 2s infinite ${i * 0.2}s` }}>{char}</span>
+          ))}
         </h1>
 
-        <p style={{ maxWidth: '600px', margin: '0 auto 4rem', fontSize: '0.9rem', letterSpacing: '3px', opacity: 0.8, lineHeight: '1.8' }}>
-          REAL-TIME ON-CHAIN REFLEX DUELS.<br />
-          POWERED BY SOMNIA REACTIVITY.<br />
-          ZERO POLLING. MILLISECONDS DECIDE EVERYTHING.
-        </p>
+        <div style={{ marginBottom: '6rem' }}>
+          <p className="numeric" style={{ color: 'var(--magenta)', fontSize: '0.9rem', letterSpacing: '4px' }}>
+            [ SOMNIA CHAIN >> SEASON 01 ]
+          </p>
+        </div>
 
-        <div style={{ position: 'relative', width: '300px', height: '120px', margin: '0 auto' }}>
-          <div className="sonar-ping">
-            <div className="sonar-ring" />
-            <div className="sonar-ring" />
-            <div className="sonar-ring" />
-          </div>
-
+        <div style={{ marginBottom: '4rem' }}>
           <button
             className="btn-precision"
-            style={{ fontSize: '1.1rem', padding: '1.2rem 2.5rem', width: '300px', position: 'relative', zIndex: 5 }}
+            style={{ fontSize: '1.2rem', padding: '1.5rem 3rem' }}
             onClick={handleEnter}
           >
-            ENTER THE ARENA
+            <span className="arcade-blink">INSERT COIN</span>
           </button>
         </div>
 
-        <div style={{ marginTop: '3rem' }}>
-          <p style={{ color: 'var(--red)', fontSize: '0.7rem', letterSpacing: '4px', fontWeight: 'bold' }}>
-            [ WARNING: FALSE STARTS FORFEIT ENTIRE STAKE ]
-          </p>
+        <div className="arcade-blink" style={{ color: 'var(--gold)', fontFamily: 'var(--font-display)', fontSize: '0.6rem', marginTop: '1rem' }}>
+          PRESS START TO PLAY
         </div>
       </div>
 
-      <div style={{ position: 'absolute', bottom: '120px', left: '0', width: '100%', opacity: 0.3 }}>
-        <p className="stat-label" style={{ textAlign: 'center' }}>POWERED BY SOMNIA REACTIVITY ENGINE v2.0</p>
+      {/* ── Footer Bar ──────────────────────────────────────────────────────── */}
+      <div style={{
+        position: 'absolute',
+        bottom: '2rem',
+        width: '100%',
+        padding: '0 4rem',
+        display: 'flex',
+        justifyContent: 'space-between',
+        fontFamily: 'var(--font-display)',
+        fontSize: '0.6rem',
+        color: 'var(--cyan)'
+      }}>
+        <div>TOTAL BATTLES: {duelCount || '0000'}</div>
+        <div style={{ color: 'var(--gold)' }}>CREDIT: 01</div>
+      </div>
+
+      <div style={{ position: 'fixed', bottom: '120px', right: '40px', opacity: 0.1, pointerEvents: 'none' }}>
+        <h1 className="title-display" style={{ fontSize: '12rem', letterSpacing: '0' }}>88</h1>
       </div>
 
     </div>

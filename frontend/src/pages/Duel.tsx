@@ -96,24 +96,64 @@ export function Duel() {
 
   if (activeDuelId) {
     return (
-      <div className="flex-center" style={{ height: '100vh', overflow: 'hidden' }}>
-        <div style={{ flex: '1', padding: '2rem', height: '100%', position: 'relative' }} className="pulse-tensed">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-              <button className="btn-precision" style={{ fontSize: '0.6rem' }} onClick={() => setActiveDuelId(null)}>← TERMINATE</button>
-              <h2 className="title-display" style={{ fontSize: '1.2rem' }}>ARENA_SESSION_{activeDuelId}</h2>
+      <div className="flex-center pixel-in" style={{ height: '100vh', overflow: 'hidden' }}>
+        <div style={{ flex: '1', padding: '1rem 2rem', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+
+          {/* ── Arcade HUD ─────────────────────────────────────────────────── */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '1rem',
+            background: 'var(--bg-panel)',
+            borderBottom: '4px solid var(--magenta)',
+            marginBottom: '1rem',
+            boxShadow: '0 4px 0 var(--bg-deep)'
+          }}>
+            <div style={{ display: 'flex', flex: 1, alignItems: 'center', gap: '2rem' }}>
+              <div style={{ border: '2px solid var(--magenta)', padding: '0.4rem 0.8rem' }}>
+                <span className="stat-label" style={{ color: 'var(--magenta)' }}>P1</span>
+                <span className="numeric" style={{ marginLeft: '1rem', fontSize: '0.8rem' }}>{account?.slice(0, 6)}...</span>
+              </div>
+              <div className="stat-box" style={{ padding: '0.4rem 0.8rem' }}>
+                <span className="stat-label">POWER</span>
+                <EloDisplay player={account!} />
+              </div>
             </div>
-            <div className="stat-box">
-              <span className="stat-label">PILOT_ELO</span>
-              <EloDisplay player={account!} />
+
+            <div style={{ textAlign: 'center', flex: 1 }}>
+              <div className="title-display" style={{ fontSize: '1rem', color: 'var(--gold)' }}>ROUND 01</div>
+              <div style={{ fontSize: '0.5rem', color: 'var(--cyan)', marginTop: '0.2rem' }}>SESSION_{activeDuelId.slice(-4)}</div>
+            </div>
+
+            <div style={{ display: 'flex', flex: 1, justifyContent: 'flex-end', alignItems: 'center', gap: '2rem' }}>
+              <button
+                className="btn-precision"
+                style={{ fontSize: '0.5rem', padding: '0.4rem 1rem', boxShadow: '0 4px 0 var(--red)', border: '2px solid var(--red)', background: 'rgba(255,0,0,0.1)' }}
+                onClick={() => setActiveDuelId(null)}
+              >
+                FORFEIT
+              </button>
             </div>
           </div>
-          <div className="panel" style={{ height: 'calc(100% - 120px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+
+          {/* ── Main Arena ─────────────────────────────────────────────────── */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <SignalZone duelId={activeDuelId} />
           </div>
         </div>
-        <div style={{ width: '320px', height: '100%', borderLeft: '1px solid var(--border-dim)', background: 'var(--bg-panel)', padding: '2rem' }}>
-          <h3 className="title-display" style={{ fontSize: '0.7rem', color: 'var(--gold)', marginBottom: '2rem' }}>NEURAL FEED</h3>
+
+        {/* ── Side Feed ───────────────────────────────────────────────────── */}
+        <div style={{
+          width: '320px',
+          height: '100%',
+          borderLeft: '4px solid var(--bg-deep)',
+          background: 'var(--bg-panel)',
+          padding: '2rem',
+          boxShadow: '-4px 0 0 var(--purple)'
+        }}>
+          <div className="panel-header-strip" style={{ background: 'var(--purple)' }} />
+          <h3 className="title-display" style={{ fontSize: '0.6rem', color: 'var(--purple)', marginBottom: '2rem' }}>BATTLE LOG</h3>
           <MatchFeed />
         </div>
       </div>
@@ -121,114 +161,143 @@ export function Duel() {
   }
 
   return (
-    <div className="flex-center column" style={{ height: '100vh', padding: '2rem' }}>
+    <div className="flex-center column pixel-in" style={{ height: '100vh', padding: '2rem' }}>
 
-      <div style={{ width: '100%', maxWidth: '800px', marginBottom: '3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* ── Header Bar ────────────────────────────────────────────────────── */}
+      <div style={{ width: '100%', maxWidth: '900px', marginBottom: '3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Link to="/lobby">
-          <button className="btn-precision" style={{ fontSize: '0.6rem' }}>← LOBBY</button>
+          <button className="btn-precision" style={{ fontSize: '0.6rem' }}>← DISCONNECT</button>
         </Link>
-        <div className="stat-box">
-          <span className="stat-label">BIOMETRIC_PROFILE</span>
+        <div className="stat-box" style={{ display: 'flex', gap: '2rem', alignItems: 'center', padding: '0.5rem 1.5rem' }}>
+          <span className="stat-label">NEURAL_ID</span>
           <EloDisplay player={account!} />
         </div>
       </div>
 
-      <div className="panel" style={{ width: '100%', maxWidth: '800px', display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '3rem' }}>
+      <div className="panel" style={{ width: '100%', maxWidth: '900px', display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '0', padding: 0 }}>
+        <div className="panel-header-strip" style={{ background: 'var(--magenta)' }} />
 
-        <div className="flex-center column" style={{ borderRight: '1px solid var(--border-dim)', paddingRight: '3rem', alignItems: 'flex-start' }}>
-          <h3 className="title-display" style={{ fontSize: '1.2rem', color: 'var(--gold)', marginBottom: '2rem' }}>INITIALIZE ARENA</h3>
+        {/* Left: Create */}
+        <div style={{ padding: '3rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+          <h3 className="title-display" style={{ fontSize: '1rem', color: 'var(--magenta)', marginBottom: '2.5rem' }}>CREATE DUEL</h3>
 
-          <div style={{ width: '100%', marginBottom: '2rem' }}>
-            <label className="stat-label" style={{ marginBottom: '0.5rem' }}>STAKE (STT)</label>
-            <input
-              type="text"
-              value={stakeSTT}
-              onChange={e => setStakeSTT(e.target.value)}
-              className="numeric"
-              style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--cyan)', color: 'var(--cyan)', fontSize: '2rem', width: '100%', outline: 'none', padding: '0.5rem 0' }}
-            />
+          <div style={{ width: '100%', marginBottom: '2.5rem' }}>
+            <label className="stat-label" style={{ marginBottom: '0.8rem', display: 'block' }}>COIN_STAKE (STT)</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <span style={{ color: 'var(--gold)', fontSize: '1.5rem' }}>🌕</span>
+              <input
+                type="text"
+                value={stakeSTT}
+                onChange={e => setStakeSTT(e.target.value)}
+                className="numeric"
+                style={{ background: 'transparent', border: 'none', borderBottom: '2px solid var(--magenta)', color: 'var(--magenta)', fontSize: '2rem', width: '100%', outline: 'none', padding: '0.5rem 0' }}
+              />
+            </div>
           </div>
 
           {!openChallengeId ? (
             <button
-              className="btn-precision pulse-breathing"
-              style={{ width: '100%', padding: '1.2rem', marginBottom: '1rem' }}
+              className="btn-precision arcade-blink"
+              style={{ width: '100%', padding: '1.2rem' }}
               onClick={handleOpenChallenge}
               disabled={openChallenging}
             >
-              {openChallenging ? 'SYNCHRONIZING...' : 'ESTABLISH OPEN STAKE'}
+              {openChallenging ? 'BROADCASTING...' : 'BROADCAST CHALLENGE'}
             </button>
           ) : (
-            <div style={{ width: '100%' }}>
-              <div className="stat-box" style={{ borderColor: 'var(--gold)', marginBottom: '1rem' }}>
-                <span className="stat-label">INVITATION LINK</span>
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
-                  <input readOnly value={`${BASE_URL}/duel?join=${openChallengeId}`} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'rgba(255,255,255,0.4)', padding: '0.5rem', flex: 1, fontSize: '0.7rem' }} />
-                  <button className="btn-precision" style={{ padding: '0.5rem 1rem' }} onClick={handleCopyLink}>{linkCopied ? 'COPIED' : 'COPY'}</button>
+            <div style={{ width: '100%', animation: 'pixel-in 0.3s steps(3)' }}>
+              <div className="stat-box" style={{ borderColor: 'var(--gold)', marginBottom: '1.5rem', background: 'rgba(0,0,0,0.5)' }}>
+                <span className="stat-label">TICKET STUB</span>
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.8rem' }}>
+                  <input readOnly value={`${BASE_URL}/duel?join=${openChallengeId}`} style={{ background: 'var(--bg-deep)', border: 'none', color: 'var(--cyan)', padding: '0.5rem', flex: 1, fontSize: '0.65rem', fontFamily: 'var(--font-mono)' }} />
+                  <button className="btn-precision" style={{ padding: '0.5rem 1rem', fontSize: '0.5rem' }} onClick={handleCopyLink}>{linkCopied ? 'OK' : 'COPY'}</button>
                 </div>
               </div>
-              <button className="btn-precision" style={{ width: '100%' }} onClick={() => setActiveDuelId(openChallengeId)}>ENTER STANDBY</button>
+              <button className="btn-precision" style={{ width: '100%', background: 'var(--gold)', color: 'var(--bg-deep)', border: 'none' }} onClick={() => setActiveDuelId(openChallengeId)}>ENTER STANDBY</button>
             </div>
           )}
-
-          <p style={{ fontSize: '0.6rem', opacity: 0.4, letterSpacing: '2px', textTransform: 'uppercase', marginTop: '1rem' }}>
-            Anyone with the link can join this duel.
-          </p>
         </div>
 
-        <div className="flex-center column" style={{ alignItems: 'flex-start' }}>
-          <h3 className="title-display" style={{ fontSize: '1rem', marginBottom: '2rem' }}>JOIN PRE-ESTABLISHED</h3>
+        {/* Center: VS Divider */}
+        <div style={{
+          width: '80px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--bg-deep)',
+          position: 'relative',
+          boxShadow: 'inset 0 0 20px rgba(0,0,0,1)'
+        }}>
+          <div style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '2rem',
+            color: 'var(--gold)',
+            transform: 'rotate(-10deg)',
+            textShadow: '4px 4px 0 var(--red)'
+          }}>VS</div>
+        </div>
 
-          <div style={{ width: '100%', marginBottom: '2rem' }}>
-            <label className="stat-label" style={{ marginBottom: '0.5rem' }}>SESSION_ID</label>
+        {/* Right: Join */}
+        <div style={{ padding: '3rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', background: 'rgba(0,0,0,0.2)' }}>
+          <h3 className="title-display" style={{ fontSize: '1rem', color: 'var(--cyan)', marginBottom: '2.5rem' }}>JOIN COMBAT</h3>
+
+          <div style={{ width: '100%', marginBottom: '2.5rem' }}>
+            <label className="stat-label" style={{ marginBottom: '0.8rem', display: 'block' }}>TICKET_ID</label>
             <input
               type="text"
               value={joinId}
               onChange={e => setJoinId(e.target.value)}
-              placeholder="0x00...000"
+              placeholder="0x..."
               className="numeric"
-              style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--cyan)', color: 'rgba(255,255,255,0.4)', fontSize: '1.2rem', width: '100%', outline: 'none', padding: '0.5rem 0' }}
+              style={{ background: 'transparent', border: 'none', borderBottom: '2px solid var(--cyan)', color: 'var(--cyan)', fontSize: '1.2rem', width: '100%', outline: 'none', padding: '0.5rem 0' }}
             />
           </div>
 
           <button
             className="btn-precision"
-            style={{ width: '100%', padding: '1rem' }}
+            style={{ width: '100%', padding: '1rem', borderColor: 'var(--cyan)', color: 'var(--cyan)' }}
             onClick={handleJoin}
             disabled={joining || !joinId}
           >
-            {joining ? 'LOCKING...' : 'JOIN COMBAT'}
+            {joining ? 'LINKING...' : 'SYNC LINK'}
           </button>
 
-          <div style={{ marginTop: 'auto', paddingTop: '2rem' }}>
-            <h4 className="title-display" style={{ fontSize: '0.7rem', marginBottom: '1rem' }}>DIRECT LINK</h4>
+          <div style={{ marginTop: 'auto', width: '100%' }}>
             <div
-              className="btn-precision"
-              style={{ fontSize: '0.6rem', padding: '0.8rem', opacity: showDirect ? 1 : 0.5, cursor: 'pointer' }}
+              style={{
+                fontSize: '0.5rem',
+                color: 'var(--purple)',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-display)',
+                textAlign: 'center',
+                padding: '1rem',
+                border: '2px dashed var(--purple)'
+              }}
               onClick={() => setShowDirect(!showDirect)}
             >
-              {showDirect ? 'HIDE_INPUT' : 'ENTER ADDRESS'}
+              {showDirect ? '[ HIDE DIRECT ]' : '[ DIRECT CHALLENGE ]'}
             </div>
             {showDirect && (
-              <div style={{ marginTop: '1rem', width: '100%' }}>
+              <div style={{ marginTop: '1rem', width: '100%', animation: 'pixel-in 0.2s steps(2)' }}>
                 <input
                   type="text"
                   value={opponent}
                   onChange={e => setOpponent(e.target.value)}
-                  placeholder="0x..."
+                  placeholder="ADDRESS"
                   className="numeric"
-                  style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'var(--cyan)', padding: '0.8rem', width: '100%', fontSize: '0.8rem', outline: 'none' }}
+                  style={{ background: 'rgba(0,0,0,0.5)', border: 'none', color: 'var(--gold)', padding: '0.8rem', width: '100%', fontSize: '0.7rem', outline: 'none', marginBottom: '0.5rem' }}
                 />
-                <button className="btn-precision" style={{ width: '100%', marginTop: '0.5rem' }} onClick={handleDirectChallenge}>CHALLENGE</button>
+                <button className="btn-precision" style={{ width: '100%', padding: '0.5rem', fontSize: '0.5rem' }} onClick={handleDirectChallenge}>SEND CHALLENGE</button>
               </div>
             )}
           </div>
         </div>
-
       </div>
 
-      <div style={{ marginTop: '3rem', opacity: 0.5 }}>
-        <p className="stat-label">PRE-STAKE IS NON-REFUNDABLE UPON COMMENCEMENT.</p>
+      <div style={{ marginTop: '4rem', textAlign: 'center' }}>
+        <p className="stat-label" style={{ color: 'var(--red)', animation: 'blink 1.5s infinite steps(2)' }}>
+          [ PRO-TIP: WINNER TAKES ALL // FALSE START = FORFEIT ]
+        </p>
       </div>
 
     </div>

@@ -7,12 +7,13 @@ import { Duel } from './pages/Duel';
 import { Leaderboard } from './pages/Leaderboard';
 import { Practice } from './pages/Practice';
 import { HeartbeatLine } from './components/HeartbeatLine';
+import { ImmersiveBackground } from './components/ImmersiveBackground';
 
 function App() {
   return (
     <Web3Provider>
       <WalletProvider>
-        <div className="ecg-grid"></div>
+        <ImmersiveBackground />
         <HeartbeatLine />
 
         <BrowserRouter>

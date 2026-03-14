@@ -21,11 +21,14 @@ export function EloDisplay({ player }: { player: `0x${string}` }) {
     }, [player]);
 
     return (
-        <div className="stat-box" style={{ borderLeftColor: 'var(--gold)' }}>
-            <span className="stat-label">SYNC_LEVEL</span>
-            <span className="stat-value numeric" style={{ color: 'var(--gold)' }}>
-                {elo !== null ? elo : '---'}
-            </span>
+        <div className="flex-center" style={{ gap: '0.8rem' }}>
+            <span style={{ fontSize: '1.2rem', filter: 'drop-shadow(0 0 5px var(--gold))' }}>🌕</span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                <span className="stat-label" style={{ color: 'var(--gold)', fontSize: '0.45rem' }}>POWER_LVL</span>
+                <span className="numeric" style={{ color: 'var(--gold)', fontSize: '1.2rem', textShadow: '2px 2px 0 #000' }}>
+                    {elo !== null ? elo : '0000'}
+                </span>
+            </div>
         </div>
     );
 }
