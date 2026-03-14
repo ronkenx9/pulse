@@ -24,7 +24,7 @@ function shortAddr(addr: string) {
 
 function formatTime(ts: number) {
   const d = new Date(ts);
-  return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}`;
+  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}`;
 }
 
 export function useLiveFeed() {
@@ -37,7 +37,7 @@ export function useLiveFeed() {
     const load = async () => {
       try {
         const currentBlock = await publicClient.getBlockNumber();
-        const fromBlock = currentBlock > 2000n ? currentBlock - 2000n : 0n;
+        const fromBlock = currentBlock > 1000n ? currentBlock - 1000n : 0n;
 
         const logs = await publicClient.getLogs({
           address: PULSE_GAME_ADDRESS as `0x${string}`,

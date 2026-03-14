@@ -28,7 +28,7 @@ export function useLeaderboard() {
     const load = async () => {
       try {
         const currentBlock = await publicClient.getBlockNumber();
-        const fromBlock = currentBlock > 50000n ? currentBlock - 50000n : 0n;
+        const fromBlock = currentBlock > 1000n ? currentBlock - 1000n : 0n;
 
         const logs = await publicClient.getLogs({
           address: PULSE_GAME_ADDRESS as `0x${string}`,
