@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { SDK } from '@somnia-chain/reactivity';
-import { createPublicClient, http } from 'viem';
+import { createPublicClient, http, keccak256, toHex } from 'viem';
 import { somniaTestnet } from '../lib/chain';
 import { PULSE_GAME_ADDRESS, pulseGameAbi } from '../lib/contracts';
 
@@ -42,7 +42,12 @@ export function useReactivity(duelId: string | null) {
             const result = data.ethCalls[0].result;
             const duelState = Array.isArray(result) ? result[5] : result?.state;
 
-            if (data.event?.name === 'SignalFired') {
+            // DERIVE STATE: If already armed (2) in contract, force UI state
+            if (Number(duelState) === 2) {
+              setIsArmed(true);
+            }
+
+            if (data.event?.name === 'SignalFired' || (data.event && keccak256(toHex('SignalFired(uint256,uint256)')) === data.event.topics?.[0])) {
               const now = performance.now();
               setSignalTimestamp(now);
               setIsArmed(true);

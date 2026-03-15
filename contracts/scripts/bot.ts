@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, http, parseGwei, keccak256, decodeEventLog } from 'viem';
+import { createPublicClient, createWalletClient, http, parseGwei, keccak256, decodeEventLog, encodeEventTopics, toHex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { SDK } from '@somnia-chain/reactivity';
 import * as dotenv from 'dotenv';
@@ -117,7 +117,7 @@ async function startBot() {
         const topic0 = log.topics[0];
 
         // --- 1. DuelCreated ---
-        const sigDuelCreated = keccak256(Buffer.from('DuelCreated(uint256,address,address,uint256)'));
+        const sigDuelCreated = encodeEventTopics({ abi: pulseGameAbi, eventName: 'DuelCreated' })[0];
         if (topic0 === sigDuelCreated) {
           const decoded = decodeEventLog({ abi: pulseGameAbi, data: log.data, topics: log.topics }) as any;
           const { duelId, player2, stake } = decoded.args;
@@ -160,7 +160,7 @@ async function startBot() {
         }
 
         // --- 2. SignalFired ---
-        const sigSignalFired = keccak256(Buffer.from('SignalFired(uint256,uint256)'));
+        const sigSignalFired = encodeEventTopics({ abi: pulseGameAbi, eventName: 'SignalFired' })[0];
         if (topic0 === sigSignalFired) {
           const decoded = decodeEventLog({ abi: pulseGameAbi, data: log.data, topics: log.topics }) as any;
           const { duelId } = decoded.args;
