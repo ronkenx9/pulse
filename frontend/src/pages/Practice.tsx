@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
-import { playSnap, playHum, playBassDrop, ensureAudio, startAmbient } from '../lib/audio';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { playSnap, playHum, playBassDrop, playBuzzer, playCountdownBeep, playClick, ensureAudio, startBGM } from '../lib/audio';
+import { useToast } from '../components/Toast';
 
 type Difficulty = 'ROOKIE' | 'SOLDIER' | 'LEGEND';
 type Stage = 'IDLE' | 'COUNTDOWN' | 'WAIT' | 'FIRE' | 'RESULT_HIT' | 'RESULT_EARLY';
@@ -26,11 +28,13 @@ const BOT_ADDRESS = '0x4EE45DA3868ba337AAD8B2803f325a2900EDb2a5';
 export function Practice() {
   const navigate = useNavigate();
   const { account } = useWallet();
+  const { toast } = useToast();
   const [mode, setMode] = useState<'OFFLINE' | 'ON-CHAIN'>('OFFLINE');
   const [difficulty, setDifficulty] = useState<Difficulty>('SOLDIER');
   const [stage, setStage] = useState<Stage>('IDLE');
   const [countdown, setCountdown] = useState(3);
   const [reactionMs, setReactionMs] = useState<number | null>(null);
+  const [isNewBest, setIsNewBest] = useState(false);
   const [history, setHistory] = useState<number[]>(() => {
     try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; }
   });
@@ -45,7 +49,7 @@ export function Practice() {
   const humHandleRef = useRef<{ stop: () => void } | null>(null);
 
   useEffect(() => {
-    startAmbient('ARENA');
+    startBGM('TRAINING');
     return () => {
       if (signalTimer.current) clearTimeout(signalTimer.current);
       if (countdownTimer.current) clearInterval(countdownTimer.current);
@@ -59,14 +63,19 @@ export function Practice() {
     if (countdownTimer.current) clearInterval(countdownTimer.current);
 
     setReactionMs(null);
+    setIsNewBest(false);
     setStage('COUNTDOWN');
     setCountdown(3);
 
     let c = 3;
+    playCountdownBeep(false);
     countdownTimer.current = setInterval(() => {
       c--;
       setCountdown(c);
-      if (c <= 0) {
+      if (c > 0) {
+        playCountdownBeep(false);
+      } else {
+        playCountdownBeep(true);
         clearInterval(countdownTimer.current!);
         beginWait();
       }
@@ -90,7 +99,7 @@ export function Practice() {
     if (stage === 'WAIT') {
       if (signalTimer.current) clearTimeout(signalTimer.current);
       if (humHandleRef.current) humHandleRef.current.stop();
-      playBassDrop();
+      playBuzzer();
       setStage('RESULT_EARLY');
       return;
     }
@@ -106,9 +115,19 @@ export function Practice() {
 
       if (personalBest === null || ms < personalBest) {
         setPersonalBest(ms);
+        setIsNewBest(true);
         localStorage.setItem(BEST_KEY, ms.toString());
       }
     }
+  };
+
+  const handleAIChallenge = () => {
+    if (!account) {
+      toast('CONNECT WALLET TO CHALLENGE AI', 'warning');
+      return;
+    }
+    playClick();
+    navigate(`/duel?opponent=${BOT_ADDRESS}&stake=0.01`);
   };
 
   return (
@@ -125,12 +144,12 @@ export function Practice() {
         <h1 className="title-display" style={{ fontSize: '2.5rem', marginTop: '1rem' }}>TRAINING MODE</h1>
       </div>
 
-      {/* ── Mode Select ────────────────────────────────────────────────────── */}
+      {/* Mode Select */}
       <div style={{ display: 'flex', gap: '2rem', marginBottom: '3rem' }}>
         <button
           className="btn-precision"
           style={{ opacity: mode === 'OFFLINE' ? 1 : 0.3, fontSize: '0.6rem', padding: '0.8rem 1.5rem' }}
-          onClick={() => setMode('OFFLINE')}
+          onClick={() => { setMode('OFFLINE'); playClick(); }}
         >
           [ LOCAL SIM ]
         </button>
@@ -138,13 +157,10 @@ export function Practice() {
           className="btn-precision"
           style={{
             opacity: mode === 'ON-CHAIN' ? 1 : 0.3,
-            borderColor: 'var(--gold)',
-            color: 'var(--gold)',
-            fontSize: '0.6rem',
-            padding: '0.8rem 1.5rem',
-            boxShadow: '4px 0 0 0 var(--gold), -4px 0 0 0 var(--gold), 0 4px 0 0 var(--gold), 0 -4px 0 0 var(--gold), 0 8px 0 0 var(--bg-deep)'
+            borderColor: 'var(--gold)', color: 'var(--gold)', fontSize: '0.6rem', padding: '0.8rem 1.5rem',
+            boxShadow: '4px 0 0 0 var(--gold), -4px 0 0 0 var(--gold), 0 4px 0 0 var(--gold), 0 -4px 0 0 var(--gold), 0 8px 0 0 var(--bg-deep)',
           }}
-          onClick={() => setMode('ON-CHAIN')}
+          onClick={() => { setMode('ON-CHAIN'); playClick(); }}
         >
           [ AI DUEL ]
         </button>
@@ -159,19 +175,27 @@ export function Practice() {
           {stage === 'IDLE' && (
             <div className="flex-center column">
               <h2 className="title-display arcade-blink" style={{ fontSize: '1rem', marginBottom: '2.5rem', color: 'var(--green)' }}>P1 READY</h2>
-              <button className="btn-precision" style={{ padding: '2rem 4rem', fontSize: '1.2rem' }} onClick={mode === 'OFFLINE' ? startRound : () => {
-                if (!account) return alert("CONNECT WALLET TO ENTER ARENA");
-                navigate(`/duel?opponent=${BOT_ADDRESS}&stake=0.01`);
-              }}>
-                {mode === 'OFFLINE' ? 'START' : 'CHALLENGE'}
-              </button>
+
+              {mode === 'ON-CHAIN' && !account ? (
+                <div className="flex-center column" style={{ gap: '1.5rem' }}>
+                  <p className="stat-label" style={{ color: 'var(--gold)' }}>CONNECT WALLET TO CHALLENGE AI</p>
+                  <ConnectButton />
+                </div>
+              ) : (
+                <button className="btn-precision" style={{ padding: '2rem 4rem', fontSize: '1.2rem' }} onClick={mode === 'OFFLINE' ? startRound : handleAIChallenge}>
+                  {mode === 'OFFLINE' ? 'START' : 'CHALLENGE'}
+                </button>
+              )}
             </div>
           )}
 
           {stage === 'COUNTDOWN' && (
             <div className="flex-center column">
               <span className="stat-label">GET READY</span>
-              <span className="title-display arcade-blink" style={{ fontSize: '8rem', color: 'var(--cyan)', marginTop: '1rem' }}>
+              <span className="title-display" style={{
+                fontSize: '8rem', color: 'var(--cyan)', marginTop: '1rem',
+                animation: 'countdown-pulse 0.3s ease-out',
+              }} key={countdown}>
                 {countdown > 0 ? countdown : 'GO!'}
               </span>
             </div>
@@ -179,27 +203,33 @@ export function Practice() {
 
           {(stage === 'WAIT' || stage === 'FIRE') && (
             <div className="flex-center column" style={{ position: 'relative', width: '100%' }}>
+              {stage === 'FIRE' && (
+                <div style={{
+                  position: 'absolute', inset: '-50px', zIndex: -1, pointerEvents: 'none',
+                  animation: 'fire-flash 0.3s ease-out forwards',
+                }} />
+              )}
               <h2 className="title-display arcade-blink" style={{ fontSize: '1.2rem', marginBottom: '3.5rem', color: stage === 'FIRE' ? 'var(--green)' : 'var(--red)' }}>
                 {stage === 'WAIT' ? 'WAIT...' : 'FIRE!!'}
               </h2>
               <button
                 className="btn-precision neon-glow"
                 style={{
-                  width: '250px',
-                  height: '250px',
-                  borderRadius: '50%',
-                  fontSize: '2rem',
+                  width: '250px', height: '250px', borderRadius: '50%', fontSize: '2rem',
                   borderColor: stage === 'FIRE' ? 'var(--green)' : 'var(--red)',
                   color: stage === 'FIRE' ? 'var(--green)' : 'var(--red)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: `0 8px 0 var(--bg-deep), 0 0 30px ${stage === 'FIRE' ? 'var(--green)' : 'var(--red)'}`
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: `0 8px 0 var(--bg-deep), 0 0 30px ${stage === 'FIRE' ? 'var(--green)' : 'var(--red)'}`,
                 }}
                 onClick={handleReact}
               >
                 REACT
               </button>
+              {stage === 'WAIT' && (
+                <p style={{ marginTop: '2rem', fontSize: '0.5rem', color: 'var(--red)', opacity: 0.6 }}>
+                  EARLY REACT = DISQUALIFICATION
+                </p>
+              )}
             </div>
           )}
 
@@ -207,11 +237,14 @@ export function Practice() {
             <div className="flex-center column">
               {stage === 'RESULT_HIT' ? (
                 <>
-                  <h2 className="title-display" style={{ fontSize: '4rem', color: getGrade(reactionMs!, DIFFICULTIES[difficulty].target).color }}>
+                  <h2 className="title-display" style={{
+                    fontSize: '4rem', color: getGrade(reactionMs!, DIFFICULTIES[difficulty].target).color,
+                    animation: 'result-slam 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+                  }}>
                     {getGrade(reactionMs!, DIFFICULTIES[difficulty].target).label}
                   </h2>
                   <span className="numeric" style={{ fontSize: '2rem', marginTop: '1rem', color: '#fff' }}>[{reactionMs}ms]</span>
-                  {reactionMs === personalBest && (
+                  {isNewBest && (
                     <div className="arcade-blink" style={{ color: 'var(--gold)', fontSize: '0.6rem', marginTop: '1rem', fontFamily: 'var(--font-display)' }}>
                       NEW RECORD!!
                     </div>
@@ -219,8 +252,14 @@ export function Practice() {
                 </>
               ) : (
                 <div style={{ textAlign: 'center' }}>
-                  <h2 className="title-display arcade-blink" style={{ fontSize: '2.5rem', color: 'var(--red)' }}>DQ!!</h2>
-                  <p className="stat-label" style={{ marginTop: '1.5rem' }}>EALRY RELEASE DETECTED</p>
+                  <h2 className="title-display" style={{
+                    fontSize: '2.5rem', color: 'var(--red)',
+                    animation: 'result-slam 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+                  }}>DQ!!</h2>
+                  <p className="stat-label" style={{ marginTop: '1.5rem' }}>EARLY RELEASE DETECTED</p>
+                  <p style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '0.5rem' }}>
+                    Wait for the green FIRE flash before pressing react
+                  </p>
                 </div>
               )}
               <button className="btn-precision" style={{ marginTop: '3rem', padding: '1rem 3rem' }} onClick={startRound}>AGAIN?</button>
@@ -237,15 +276,13 @@ export function Practice() {
                 key={key}
                 className="btn-precision"
                 style={{
-                  fontSize: '0.5rem',
-                  padding: '1rem',
-                  textAlign: 'left',
+                  fontSize: '0.5rem', padding: '1rem', textAlign: 'left',
                   opacity: difficulty === key ? 1 : 0.4,
                   borderColor: difficulty === key ? d.color : 'var(--bg-deep)',
                   background: difficulty === key ? 'rgba(255,255,255,0.05)' : 'transparent',
-                  boxShadow: difficulty === key ? `4px 4px 0 var(--bg-deep)` : 'none'
+                  boxShadow: difficulty === key ? `4px 4px 0 var(--bg-deep)` : 'none',
                 }}
-                onClick={() => { setDifficulty(key); setStage('IDLE'); }}
+                onClick={() => { setDifficulty(key); setStage('IDLE'); playClick(); }}
               >
                 {d.stage}: {d.label} &gt;&gt; OBJ: &lt;{d.target}ms
               </button>
@@ -265,11 +302,9 @@ export function Practice() {
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
               {history.map((ms, i) => (
                 <div key={i} className="numeric" style={{
-                  fontSize: '0.6rem',
-                  padding: '0.4rem 0.8rem',
-                  background: 'var(--bg-deep)',
-                  border: '1px solid var(--purple)',
-                  color: ms === personalBest ? 'var(--gold)' : 'var(--cyan)'
+                  fontSize: '0.6rem', padding: '0.4rem 0.8rem',
+                  background: 'var(--bg-deep)', border: '1px solid var(--purple)',
+                  color: ms === personalBest ? 'var(--gold)' : 'var(--cyan)',
                 }}>
                   {ms}ms
                 </div>

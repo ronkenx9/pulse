@@ -2,7 +2,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useEffect, useState } from 'react';
-import { startAmbient } from '../lib/audio';
+import { startBGM } from '../lib/audio';
 
 export function Lobby() {
     const { account } = useWallet();
@@ -10,7 +10,7 @@ export function Lobby() {
     const [hoverMode, setHoverMode] = useState<string | null>(null);
 
     useEffect(() => {
-        startAmbient('LOBBY');
+        startBGM('LOBBY');
     }, []);
 
     return (

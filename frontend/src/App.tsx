@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Web3Provider } from './context/Web3Provider';
 import { WalletProvider } from './context/WalletContext';
+import { ToastProvider } from './components/Toast';
 import { Home } from './pages/Home';
 import { Lobby } from './pages/Lobby';
 import { Duel } from './pages/Duel';
@@ -13,18 +14,20 @@ function App() {
   return (
     <Web3Provider>
       <WalletProvider>
-        <ImmersiveBackground />
-        <HeartbeatLine />
+        <ToastProvider>
+          <ImmersiveBackground />
+          <HeartbeatLine />
 
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/lobby" element={<Lobby />} />
-            <Route path="/duel" element={<Duel />} />
-            <Route path="/leaderboard" element={<Leaderboard />} />
-            <Route path="/practice" element={<Practice />} />
-          </Routes>
-        </BrowserRouter>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/lobby" element={<Lobby />} />
+              <Route path="/duel" element={<Duel />} />
+              <Route path="/leaderboard" element={<Leaderboard />} />
+              <Route path="/practice" element={<Practice />} />
+            </Routes>
+          </BrowserRouter>
+        </ToastProvider>
       </WalletProvider>
     </Web3Provider>
   );

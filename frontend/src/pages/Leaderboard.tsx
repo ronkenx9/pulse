@@ -8,7 +8,7 @@ const RANK_COLORS: Record<number, string> = {
 };
 
 export function Leaderboard() {
-  const { leaders, loading } = useLeaderboard();
+  const { leaders, loading, refresh } = useLeaderboard();
 
   return (
     <div className="flex-center column pixel-in" style={{ padding: '4rem 2rem', minHeight: '100vh', position: 'relative' }}>
@@ -24,6 +24,14 @@ export function Leaderboard() {
       <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
         <span className="stat-label" style={{ color: 'var(--magenta)' }}>PULSE SENTINELS</span>
         <h1 className="title-display" style={{ fontSize: '3rem', marginTop: '1rem', textShadow: '4px 4px 0 var(--purple), -2px -2px 0 var(--green)' }}>HALL OF FAME</h1>
+        <button
+          className="btn-precision"
+          style={{ marginTop: '1.5rem', fontSize: '0.5rem', padding: '0.6rem 1.5rem', borderColor: 'var(--cyan)', color: 'var(--cyan)' }}
+          onClick={refresh}
+          disabled={loading}
+        >
+          {loading ? 'SCANNING...' : 'REFRESH SCORES'}
+        </button>
       </div>
 
       <div className="panel" style={{ width: '100%', maxWidth: '1000px', padding: '0', border: '4px solid var(--bg-deep)', boxShadow: '0 0 0 4px var(--purple)' }}>

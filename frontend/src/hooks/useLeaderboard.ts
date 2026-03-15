@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createPublicClient, http, parseAbiItem } from 'viem';
 import { somniaTestnet } from '../lib/chain';
 import { PULSE_GAME_ADDRESS, pulseGameAbi } from '../lib/contracts';
@@ -21,6 +21,12 @@ const DUEL_RESOLVED_ABI = parseAbiItem(
 export function useLeaderboard() {
   const [leaders, setLeaders] = useState<LeaderEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const refresh = useCallback(() => {
+    setLoading(true);
+    setRefreshKey(k => k + 1);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,7 +105,7 @@ export function useLeaderboard() {
 
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [refreshKey]);
 
-  return { leaders, loading };
+  return { leaders, loading, refresh };
 }
