@@ -26,6 +26,7 @@ export function useReactivity(duelId: string | null) {
     const connect = async () => {
       try {
         const sub = await sdk.subscribe({
+          eventContractSources: [PULSE_GAME_ADDRESS],
           ethCalls: [
             {
               to: PULSE_GAME_ADDRESS as `0x${string}`,

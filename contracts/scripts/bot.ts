@@ -78,7 +78,7 @@ const pulseGameAbi = [
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-const activeDuelIds = new Set<bigint>();
+const activeDuelIds = new Set<string>();
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
@@ -106,120 +106,104 @@ async function startBot() {
     process.stdout.write(`\r\x1b[32m[HEARTBEAT] ${timestamp} :: ACTIVE_DUELS: ${activeDuelIds.size} :: LISTENING...\x1b[0m`);
   }, 30_000);
 
-  // ── Subscription 1: DuelCreated ──────────────────────────────────────────
-  const subDuelCreated = await sdk.subscribe({
+  // ── Unified Subscription ──────────────────────────────────────────────────
+  const subscription = await sdk.subscribe({
     eventContractSources: [PULSE_GAME_ADDRESS],
-    topicOverrides: [
-      keccak256(Buffer.from('DuelCreated(uint256,address,address,uint256)')) as `0x${string}`,
-    ],
     onData: async (data: any) => {
       try {
         const log = data.result;
-        const decoded = decodeEventLog({
-          abi: pulseGameAbi,
-          data: log.data,
-          topics: log.topics,
-        }) as any;
+        if (!log || !log.topics || log.topics.length === 0) return;
 
-        if (decoded.args.player2.toLowerCase() !== account.address.toLowerCase()) return;
+        const topic0 = log.topics[0];
 
-        const duelId: bigint = decoded.args.duelId;
-        const stake: bigint = decoded.args.stake;
-        console.log(`\n[CHALLENGE] Duel #${duelId} detected. Stake: ${stake} wei`);
+        // --- 1. DuelCreated ---
+        const sigDuelCreated = keccak256(Buffer.from('DuelCreated(uint256,address,address,uint256)'));
+        if (topic0 === sigDuelCreated) {
+          const decoded = decodeEventLog({ abi: pulseGameAbi, data: log.data, topics: log.topics }) as any;
+          const { duelId, player2, stake } = decoded.args;
 
-        // Join
-        const joinHash = await wallet.writeContract({
-          address: PULSE_GAME_ADDRESS as `0x${string}`,
-          abi: pulseGameAbi,
-          functionName: 'joinDuel',
-          args: [duelId],
-          value: stake,
-          gasPrice: parseGwei('50'),
-          chain: somniaTestnet as any,
-        });
-        await client.waitForTransactionReceipt({ hash: joinHash });
-        console.log(`[DUEL #${duelId}] Join confirmed.`);
+          const player2Addr = player2.toLowerCase();
+          const botAddr = account.address.toLowerCase();
+          const isZero = player2Addr === '0x0000000000000000000000000000000000000000';
 
-        // Arm
-        const armHash = await wallet.writeContract({
-          address: PULSE_GAME_ADDRESS as `0x${string}`,
-          abi: pulseGameAbi,
-          functionName: 'armSignal',
-          args: [duelId],
-          gasPrice: parseGwei('50'),
-          chain: somniaTestnet as any,
-        });
-        await client.waitForTransactionReceipt({ hash: armHash });
-        console.log(`[DUEL #${duelId}] Armed and ready.`);
+          if (player2Addr === botAddr || isZero) {
+            console.log(`\n[CHALLENGE] Duel #${duelId} detected. Joining...`);
+            try {
+              const joinHash = await wallet.writeContract({
+                address: PULSE_GAME_ADDRESS as `0x${string}`,
+                abi: pulseGameAbi,
+                functionName: 'joinDuel',
+                args: [duelId],
+                value: stake,
+                gasPrice: parseGwei('50'),
+                chain: somniaTestnet as any,
+              });
+              await client.waitForTransactionReceipt({ hash: joinHash });
+              console.log(`[DUEL #${duelId}] Join confirmed.`);
 
-        activeDuelIds.add(duelId);
-      } catch (e) {
-        console.error(`\n[ERROR] DuelCreated handler failure:`, e);
-      }
-    },
-    onError: (err) => {
-      console.error('\n[ERROR] DuelCreated subscription interrupted:', err);
-      throw err; // Trigger recovery
-    },
-    ethCalls: [],
-  });
+              const armHash = await wallet.writeContract({
+                address: PULSE_GAME_ADDRESS as `0x${string}`,
+                abi: pulseGameAbi,
+                functionName: 'armSignal',
+                args: [duelId],
+                gasPrice: parseGwei('50'),
+                chain: somniaTestnet as any,
+              });
+              await client.waitForTransactionReceipt({ hash: armHash });
+              console.log(`[DUEL #${duelId}] Armed & ready.`);
 
-  // ── Subscription 2: SignalFired ──────────────────────────────────────────
-  const subSignalFired = await sdk.subscribe({
-    eventContractSources: [PULSE_GAME_ADDRESS],
-    topicOverrides: [
-      keccak256(Buffer.from('SignalFired(uint256,uint256)')) as `0x${string}`,
-    ],
-    onData: async (data: any) => {
-      try {
-        const log = data.result;
-        const decoded = decodeEventLog({
-          abi: pulseGameAbi,
-          data: log.data,
-          topics: log.topics,
-        }) as any;
-
-        const duelId: bigint = decoded.args.duelId;
-
-        if (!activeDuelIds.has(duelId)) return;
-
-        const delay = Math.round(DELAY_MIN + Math.random() * (DELAY_MAX - DELAY_MIN));
-        console.log(`\n[SIGNAL] Duel #${duelId} :: CALIBRATING_REACTION :: ${delay}ms`);
-
-        activeDuelIds.delete(duelId);
-
-        setTimeout(async () => {
-          try {
-            const hash = await wallet.writeContract({
-              address: PULSE_GAME_ADDRESS as `0x${string}`,
-              abi: pulseGameAbi,
-              functionName: 'submitReaction',
-              args: [duelId],
-              gasPrice: parseGwei('50'),
-              chain: somniaTestnet as any,
-            });
-            console.log(`[DUEL #${duelId}] Reaction submitted. TX: ${hash}`);
-          } catch (e) {
-            console.error(`\n[ERROR] Duel #${duelId} reaction submission failed:`, e);
+              activeDuelIds.add(duelId.toString());
+            } catch (err) {
+              console.error(`[DUEL #${duelId}] Bot join/arm failed:`, err);
+            }
           }
-        }, delay);
+        }
+
+        // --- 2. SignalFired ---
+        const sigSignalFired = keccak256(Buffer.from('SignalFired(uint256,uint256)'));
+        if (topic0 === sigSignalFired) {
+          const decoded = decodeEventLog({ abi: pulseGameAbi, data: log.data, topics: log.topics }) as any;
+          const { duelId } = decoded.args;
+
+          if (activeDuelIds.has(duelId.toString())) {
+            const delay = Math.round(DELAY_MIN + Math.random() * (DELAY_MAX - DELAY_MIN));
+            console.log(`\n[SIGNAL] Duel #${duelId} :: REACTOR_START :: ${delay}ms`);
+
+            activeDuelIds.delete(duelId.toString());
+
+            setTimeout(async () => {
+              try {
+                const hash = await wallet.writeContract({
+                  address: PULSE_GAME_ADDRESS as `0x${string}`,
+                  abi: pulseGameAbi,
+                  functionName: 'submitReaction',
+                  args: [duelId],
+                  gasPrice: parseGwei('50'),
+                  chain: somniaTestnet as any,
+                });
+                console.log(`[DUEL #${duelId}] Bot reaction submitted: ${hash}`);
+              } catch (e) {
+                console.error(`[DUEL #${duelId}] Bot reaction failure:`, e);
+              }
+            }, delay);
+          }
+        }
+
       } catch (e) {
-        console.error(`\n[ERROR] SignalFired handler failure:`, e);
+        console.error(`\n[ERROR] Event handler failure:`, e);
       }
     },
     onError: (err) => {
-      console.error('\n[ERROR] SignalFired subscription interrupted:', err);
-      throw err; // Trigger recovery
+      console.error('\n[ERROR] Subscription interrupted:', err);
+      throw err;
     },
     ethCalls: [],
   });
 
   console.log('\x1b[32m[SYSTEM] Bot established. Monitoring neural events...\x1b[0m\n');
 
-  // Return unsubscribe functions for cleanup
   return () => {
     clearInterval(heartbeatInterval);
-    // subDuelCreated and subSignalFired cleanup if SDK supports it
   };
 }
 
@@ -232,8 +216,7 @@ async function runWithRecovery() {
     let cleanup: (() => void) | undefined;
     try {
       cleanup = await startBot();
-      // startBot successfully setup listeners. We wait here for a crash.
-      await new Promise(() => { }); // Wait forever
+      await new Promise(() => { });
     } catch (err) {
       if (cleanup) cleanup();
       restartAttempts++;
