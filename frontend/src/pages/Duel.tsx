@@ -147,35 +147,47 @@ export function Duel() {
     } finally { setOpenChallenging(false); }
   };
 
-  const handleCopyLink = () => {
+  const handleCopyLink = async () => {
     if (!openChallengeId) return;
     const url = `${window.location.origin}/duel?join=${openChallengeId}&stake=${stakeSTT}`;
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(url).then(() => {
-        playCopySuccess();
-        setLinkCopied(true);
-        toast('LINK COPIED TO CLIPBOARD', 'success', 2000);
-        setTimeout(() => setLinkCopied(false), 2000);
-      }).catch(() => fallbackCopy(url));
-    } else {
-      fallbackCopy(url);
-    }
-  };
+    let copied = false;
 
-  const fallbackCopy = (text: string) => {
-    try {
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textArea);
+    // Method 1: Clipboard API (requires HTTPS + focus)
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      try {
+        await navigator.clipboard.writeText(url);
+        copied = true;
+      } catch { /* fall through */ }
+    }
+
+    // Method 2: execCommand fallback
+    if (!copied) {
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = url;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        textArea.style.top = "-9999px";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        copied = document.execCommand("copy");
+        document.body.removeChild(textArea);
+      } catch { /* fall through */ }
+    }
+
+    // Method 3: window.prompt as last resort (user manually copies)
+    if (!copied) {
+      window.prompt('COPY THIS LINK:', url);
+      copied = true; // assume user copied from prompt
+    }
+
+    if (copied) {
       playCopySuccess();
       setLinkCopied(true);
       toast('LINK COPIED TO CLIPBOARD', 'success', 2000);
       setTimeout(() => setLinkCopied(false), 2000);
-    } catch {
-      toast('COPY FAILED — SELECT AND COPY MANUALLY', 'warning');
     }
   };
 
@@ -402,7 +414,7 @@ export function Duel() {
               <div className="stat-box" style={{ borderColor: 'var(--gold)', marginBottom: '1.5rem', background: 'rgba(0,0,0,0.5)' }}>
                 <span className="stat-label">TICKET STUB</span>
                 <div style={{ display: 'flex', gap: '1rem', marginTop: '0.8rem' }}>
-                  <input readOnly value={`${window.location.origin}/duel?join=${openChallengeId}&stake=${stakeSTT}`} style={{ background: 'var(--bg-deep)', border: 'none', color: 'var(--cyan)', padding: '0.5rem', flex: 1, fontSize: '0.65rem', fontFamily: 'var(--font-mono)' }} />
+                  <input readOnly value={`${window.location.origin}/duel?join=${openChallengeId}&stake=${stakeSTT}`} onClick={(e) => (e.target as HTMLInputElement).select()} style={{ background: 'var(--bg-deep)', border: '1px solid var(--cyan-dim, #1a3a4a)', color: 'var(--cyan)', padding: '0.5rem', flex: 1, fontSize: '0.65rem', fontFamily: 'var(--font-mono)', cursor: 'text' }} />
                   <button className="btn-precision" style={{ padding: '0.5rem 1rem', fontSize: '0.5rem' }} onClick={handleCopyLink}>{linkCopied ? 'OK' : 'COPY'}</button>
                 </div>
               </div>

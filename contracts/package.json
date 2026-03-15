@@ -12,6 +12,15 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "overrides": {
+    "elliptic": "6.6.1",
+    "serialize-javascript": "7.0.4",
+    "cookie": "1.1.1",
+    "undici": "7.24.3",
+    "bn.js": "5.2.3",
+    "tmp": "0.2.5",
+    "lodash": "4.17.21"
+  },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
     "@nomicfoundation/hardhat-ethers": "^3.0.0",
