@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { parseEther, formatEther } from 'viem';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { MatchFeed } from '../components/MatchFeed';
 import { SignalZone } from '../components/SignalZone';
 import { EloDisplay } from '../components/EloDisplay';
@@ -335,7 +336,7 @@ export function Duel() {
 
   // ═══ SETUP ═══
   return (
-    <div className="flex-center column pixel-in" style={{ height: '100vh', padding: '2rem' }}>
+    <div className="flex-center column pixel-in duel-setup-page" style={{ minHeight: '100vh', padding: '2rem' }}>
 
       {/* Auto-Initializing Bot Duel Overlay */}
       {autoCreating && (
@@ -372,7 +373,7 @@ export function Duel() {
         </div>
       </div>
 
-      <div className="panel" style={{ width: '100%', maxWidth: '900px', display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '0', padding: 0 }}>
+      <div className="panel duel-vs-grid" style={{ width: '100%', maxWidth: '900px', padding: 0 }}>
         <div className="panel-header-strip" style={{ background: 'var(--magenta)' }} />
 
         {/* Left: Create */}
@@ -397,6 +398,12 @@ export function Duel() {
           </div>
 
           {!openChallengeId ? (
+            !account ? (
+              <div style={{ width: '100%' }}>
+                <p style={{ color: 'var(--gold)', fontSize: '0.5rem', fontFamily: 'var(--font-display)', marginBottom: '1rem', textAlign: 'center' }}>[ CONNECT WALLET TO CREATE ]</p>
+                <ConnectButton />
+              </div>
+            ) : (
             <button
               className="btn-precision arcade-blink"
               style={{ width: '100%', padding: '1.2rem' }}
@@ -409,6 +416,7 @@ export function Duel() {
                 </span>
               ) : 'CREATE OPEN DUEL'}
             </button>
+            ))
           ) : (
             <div style={{ width: '100%', animation: 'pixel-in 0.3s steps(3)' }}>
               <div className="stat-box" style={{ borderColor: 'var(--gold)', marginBottom: '1.5rem', background: 'rgba(0,0,0,0.5)' }}>
@@ -427,7 +435,7 @@ export function Duel() {
         </div>
 
         {/* Center: VS Divider */}
-        <div style={{
+        <div className="duel-vs-divider" style={{
           width: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: 'var(--bg-deep)', position: 'relative', boxShadow: 'inset 0 0 20px rgba(0,0,0,1)',
         }}>
@@ -453,18 +461,25 @@ export function Duel() {
             />
           </div>
 
-          <button
-            className="btn-precision"
-            style={{ width: '100%', padding: '1rem', borderColor: 'var(--cyan)', color: 'var(--cyan)' }}
-            onClick={handleJoin}
-            disabled={joining || !joinId || !!stakeError}
-          >
-            {joining ? (
-              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
-                <span className="spinner" /> JOINING...
-              </span>
-            ) : 'JOIN DUEL'}
-          </button>
+          {!account ? (
+            <div style={{ width: '100%' }}>
+              <p style={{ color: 'var(--gold)', fontSize: '0.5rem', fontFamily: 'var(--font-display)', marginBottom: '1rem', textAlign: 'center' }}>[ CONNECT WALLET TO JOIN ]</p>
+              <ConnectButton />
+            </div>
+          ) : (
+            <button
+              className="btn-precision"
+              style={{ width: '100%', padding: '1rem', borderColor: 'var(--cyan)', color: 'var(--cyan)' }}
+              onClick={handleJoin}
+              disabled={joining || !joinId || !!stakeError}
+            >
+              {joining ? (
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
+                  <span className="spinner" /> JOINING...
+                </span>
+              ) : 'JOIN DUEL'}
+            </button>
+          )}
           <p style={{ marginTop: '1rem', fontSize: '0.5rem', color: 'var(--cyan)', opacity: 0.7, lineHeight: '1.4' }}>
             [ JOIN: ENTER A SPECIFIC TICKET_ID TO ENTER THE FIGHT. ]
           </p>

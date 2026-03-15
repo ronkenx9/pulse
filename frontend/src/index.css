@@ -563,11 +563,44 @@ body {
   transform: translateY(2px);
 }
 
-/* ── RESPONSIVE: MatchFeed sidebar hidden on small screens ──────────── */
+/* ── RESPONSIVE ──────────────────────────────────────────────────────── */
 
 @media (max-width: 900px) {
   .match-feed-sidebar {
     display: none !important;
+  }
+}
+
+/* Duel page: 3-col VS grid → stacked single column on mobile */
+.duel-vs-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+}
+
+@media (max-width: 700px) {
+  .duel-setup-page {
+    padding: 1rem !important;
+    justify-content: flex-start;
+  }
+
+  .duel-vs-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Hide VS divider on mobile — replace with a horizontal rule */
+  .duel-vs-grid .duel-vs-divider {
+    display: none !important;
+  }
+
+  /* Larger touch targets on mobile */
+  .btn-precision {
+    min-height: 52px;
+    font-size: 0.75rem !important;
+  }
+
+  /* Panel padding tighter on mobile */
+  .duel-vs-grid > div {
+    padding: 1.5rem !important;
   }
 }
 
