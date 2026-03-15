@@ -404,19 +404,19 @@ export function Duel() {
                 <ConnectButton />
               </div>
             ) : (
-            <button
-              className="btn-precision arcade-blink"
-              style={{ width: '100%', padding: '1.2rem' }}
-              onClick={handleOpenChallenge}
-              disabled={openChallenging || !!stakeError}
-            >
-              {openChallenging ? (
-                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
-                  <span className="spinner" /> BROADCASTING...
-                </span>
-              ) : 'CREATE OPEN DUEL'}
-            </button>
-            ))
+              <button
+                className="btn-precision arcade-blink"
+                style={{ width: '100%', padding: '1.2rem' }}
+                onClick={handleOpenChallenge}
+                disabled={openChallenging || !!stakeError}
+              >
+                {openChallenging ? (
+                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
+                    <span className="spinner" /> BROADCASTING...
+                  </span>
+                ) : 'CREATE OPEN DUEL'}
+              </button>
+            )
           ) : (
             <div style={{ width: '100%', animation: 'pixel-in 0.3s steps(3)' }}>
               <div className="stat-box" style={{ borderColor: 'var(--gold)', marginBottom: '1.5rem', background: 'rgba(0,0,0,0.5)' }}>
