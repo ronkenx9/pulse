@@ -7,7 +7,7 @@ import { EloDisplay } from '../components/EloDisplay';
 import { usePulseGame } from '../hooks/usePulseGame';
 import { startAmbient } from '../lib/audio';
 
-const BASE_URL = window.location.origin;
+
 const BOT_ADDRESS = '0x4EE45DA3868ba337AAD8B2803f325a2900EDb2a5';
 
 export function Duel() {
@@ -110,9 +110,35 @@ export function Duel() {
 
   const handleCopyLink = () => {
     if (!openChallengeId) return;
-    navigator.clipboard.writeText(`${BASE_URL}/duel?join=${openChallengeId}&stake=${stakeSTT}`);
-    setLinkCopied(true);
-    setTimeout(() => setLinkCopied(false), 2000);
+    const url = `${window.location.origin}/duel?join=${openChallengeId}&stake=${stakeSTT}`;
+
+    // Primary: Clipboard API
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        setLinkCopied(true);
+        setTimeout(() => setLinkCopied(false), 2000);
+      }).catch(err => {
+        console.error('Clipboard API failed, trying fallback:', err);
+        fallbackCopy(url);
+      });
+    } else {
+      fallbackCopy(url);
+    }
+  };
+
+  const fallbackCopy = (text: string) => {
+    try {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch (err) {
+      console.error('Fallback copy failed:', err);
+    }
   };
 
   const handleDirectChallenge = async () => {
@@ -280,7 +306,7 @@ export function Duel() {
               <div className="stat-box" style={{ borderColor: 'var(--gold)', marginBottom: '1.5rem', background: 'rgba(0,0,0,0.5)' }}>
                 <span className="stat-label">TICKET STUB</span>
                 <div style={{ display: 'flex', gap: '1rem', marginTop: '0.8rem' }}>
-                  <input readOnly value={`${BASE_URL}/duel?join=${openChallengeId}&stake=${stakeSTT}`} style={{ background: 'var(--bg-deep)', border: 'none', color: 'var(--cyan)', padding: '0.5rem', flex: 1, fontSize: '0.65rem', fontFamily: 'var(--font-mono)' }} />
+                  <input readOnly value={`${window.location.origin}/duel?join=${openChallengeId}&stake=${stakeSTT}`} style={{ background: 'var(--bg-deep)', border: 'none', color: 'var(--cyan)', padding: '0.5rem', flex: 1, fontSize: '0.65rem', fontFamily: 'var(--font-mono)' }} />
                   <button className="btn-precision" style={{ padding: '0.5rem 1rem', fontSize: '0.5rem' }} onClick={handleCopyLink}>{linkCopied ? 'OK' : 'COPY'}</button>
                 </div>
               </div>
