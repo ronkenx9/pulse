@@ -158,23 +158,36 @@ export function Duel() {
       setTimeout(() => setLinkCopied(false), 2000);
     };
 
-    const execCopy = () => {
+    // Step 1: Synchronous execCommand FIRST — must run while user gesture is active
+    let copied = false;
+    try {
       const ta = document.createElement("textarea");
       ta.value = url;
-      ta.style.cssText = "position:fixed;left:-9999px;top:-9999px;font-size:12pt";
+      // Must be visible enough for the browser to allow selection
+      ta.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;padding:0;border:none;outline:none;box-shadow:none;background:transparent;font-size:12pt;";
       document.body.appendChild(ta);
       ta.focus();
       ta.select();
-      const ok = document.execCommand("copy");
+      ta.setSelectionRange(0, url.length); // iOS Safari needs this
+      copied = document.execCommand("copy");
       document.body.removeChild(ta);
-      if (ok) { onSuccess(); } else { window.prompt('COPY THIS LINK:', url); onSuccess(); }
-    };
+    } catch { /* ignore */ }
 
-    // Modern Clipboard API — fire-and-forget, fallback in .catch()
+    if (copied) {
+      onSuccess();
+      return;
+    }
+
+    // Step 2: Try Clipboard API (async, may work on HTTPS with permissions)
     if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(url).then(onSuccess).catch(execCopy);
+      navigator.clipboard.writeText(url).then(onSuccess).catch(() => {
+        // Step 3: Last resort — prompt so user can manually Ctrl+C
+        window.prompt('COPY THIS LINK:', url);
+        onSuccess();
+      });
     } else {
-      execCopy();
+      window.prompt('COPY THIS LINK:', url);
+      onSuccess();
     }
   };
 
