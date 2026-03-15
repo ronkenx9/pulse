@@ -147,47 +147,34 @@ export function Duel() {
     } finally { setOpenChallenging(false); }
   };
 
-  const handleCopyLink = async () => {
+  const handleCopyLink = () => {
     if (!openChallengeId) return;
     const url = `${window.location.origin}/duel?join=${openChallengeId}&stake=${stakeSTT}`;
-    let copied = false;
 
-    // Method 1: Clipboard API (requires HTTPS + focus)
-    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-      try {
-        await navigator.clipboard.writeText(url);
-        copied = true;
-      } catch { /* fall through */ }
-    }
-
-    // Method 2: execCommand fallback
-    if (!copied) {
-      try {
-        const textArea = document.createElement("textarea");
-        textArea.value = url;
-        textArea.style.position = "fixed";
-        textArea.style.left = "-9999px";
-        textArea.style.top = "-9999px";
-        textArea.style.opacity = "0";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        copied = document.execCommand("copy");
-        document.body.removeChild(textArea);
-      } catch { /* fall through */ }
-    }
-
-    // Method 3: window.prompt as last resort (user manually copies)
-    if (!copied) {
-      window.prompt('COPY THIS LINK:', url);
-      copied = true; // assume user copied from prompt
-    }
-
-    if (copied) {
+    const onSuccess = () => {
       playCopySuccess();
       setLinkCopied(true);
       toast('LINK COPIED TO CLIPBOARD', 'success', 2000);
       setTimeout(() => setLinkCopied(false), 2000);
+    };
+
+    const execCopy = () => {
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.cssText = "position:fixed;left:-9999px;top:-9999px;font-size:12pt";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      if (ok) { onSuccess(); } else { window.prompt('COPY THIS LINK:', url); onSuccess(); }
+    };
+
+    // Modern Clipboard API — fire-and-forget, fallback in .catch()
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(url).then(onSuccess).catch(execCopy);
+    } else {
+      execCopy();
     }
   };
 
